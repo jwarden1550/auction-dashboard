@@ -525,7 +525,7 @@ function renderKpis(b){
     tile("TOTAL COST",usd(t.cost),"what these lots cost"),
     tile("TOTAL SOLD",usd(t.sold),`${fmt(t.sold_count)} sold`),
     tile("PROFIT",usd(t.profit),"sold minus cost of sold",t.profit>=0?"good":"bad"),
-    tile("MARGIN",pct(t.margin),"profit ÷ cost of sold",t.margin>=0?"good":"bad"),
+    tile("MARGIN",pct(t.margin),"profit ÷ sold",t.margin>=0?"good":"bad"),
     tile("AVG SOLD",usd(avgSold),"per lot sold","gold")
   ].join("");
   $("#mGen").textContent=stamp(b.generated);
@@ -547,16 +547,15 @@ function cell(row,c){
       const n=Number(v);
       return `<td class="num ${n>0?"pos":n<0?"neg":""}">${usd(n)}</td>`;
     }
-    /* (sold - cost) / cost. The endpoint's MARGIN column is sold minus cost
-       in DOLLARS, so rendering it as a percentage was simply wrong — a lot
-       that cost $2.31 and sold for $7 read "4.7%" instead of 203%. Computed
-       here from the two figures already on the row. Undefined when the cost
-       is $0, which is true of 23 lots, so those show a dash rather than an
-       invented number. */
+    /* (sold - cost) / sold — margin on revenue. The endpoint's MARGIN column
+       is sold minus cost in DOLLARS, so rendering it as a percentage was
+       wrong: a lot that cost $2.31 and sold for $7 read "4.7%". Computed here
+       from the two figures already on the row. Undefined only if sold price
+       is $0, which no completed sale is. */
     case "marginpct":{
       const c=numv(row.PURCHASE_COST), sp=numv(row.SOLD_PRICE);
-      if(!c) return `<td class="num" title="purchase cost is $0 — a percentage margin is undefined">—</td>`;
-      const n=((sp-c)/c)*100;
+      if(!sp) return `<td class="num" title="no sold price — a margin is undefined">—</td>`;
+      const n=((sp-c)/sp)*100;
       return `<td class="num ${n>0?"pos":n<0?"neg":""}">${pct(n)}</td>`;
     }
     case "pctcell":{
@@ -643,7 +642,7 @@ async function renderBreak(){
     });
     const list=[...g.values()].map(o=>({...o,
       profit:o.sold-o.costOfSold,
-      margin:o.costOfSold?((o.sold-o.costOfSold)/o.costOfSold)*100:null,
+      margin:o.sold?((o.sold-o.costOfSold)/o.sold)*100:null,
       avg:o.soldCount?o.sold/o.soldCount:0
     })).sort((a,b)=>b.sold-a.sold);
 
@@ -662,7 +661,7 @@ async function renderBreak(){
     const T=list.reduce((a,o)=>({lots:a.lots+o.lots,soldCount:a.soldCount+o.soldCount,cost:a.cost+o.cost,
       sold:a.sold+o.sold,costOfSold:a.costOfSold+o.costOfSold,bids:a.bids+o.bids}),
       {lots:0,soldCount:0,cost:0,sold:0,costOfSold:0,bids:0});
-    const tp=T.sold-T.costOfSold, tm=T.costOfSold?(tp/T.costOfSold)*100:null;
+    const tp=T.sold-T.costOfSold, tm=T.sold?(tp/T.sold)*100:null;
     $("#brkTbl tfoot").innerHTML=`<tr style="border-top:2px solid var(--line)">
       <td><b>TOTAL</b></td><td class="num"><b>${fmt(T.lots)}</b></td><td class="num"><b>${fmt(T.soldCount)}</b></td>
       <td class="num"><b>${usd(T.cost)}</b></td><td class="num"><b>${usd(T.sold)}</b></td>

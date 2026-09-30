@@ -69,7 +69,8 @@ function totals(rows, cols) {
   return {
     lots: rows.length, cards, cost: costSum, sold: soldSum, sold_count: soldCount,
     cost_of_sold: costOfSold, profit,
-    margin: costOfSold ? (profit / costOfSold) * 100 : null,
+    // margin on revenue: (sold - cost of sold) / sold
+    margin: soldSum ? (profit / soldSum) * 100 : null,
     cost_col: cost || null, sold_col: sold || null, qty_col: qty || null
   };
 }
