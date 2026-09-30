@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arena Auctions · Sold Lots Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Archivo:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#000;--panel:#080a08;--panel-2:#0d100d;--line:#1e241e;--line-soft:#161b16;
+  --green:#7CFF4F;--green-dim:#4e9c33;--gold:#C9A227;--gold-dim:#8a7020;
+  --text:#ffffff;--muted:#ffffff;--red:#ff5c5c;--red-dim:#5a2020;--blue:#5cc8ff;--blue-dim:#1d4459;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;--display:"Archivo",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:14px}
+body{min-height:100vh;padding:22px 26px 46px}
+button{font-family:var(--mono);cursor:pointer}
+::selection{background:var(--green);color:#000}
+
+.top{display:flex;align-items:flex-start;gap:20px}
+.mark{width:104px;height:auto;flex:0 0 104px;margin-top:4px;display:block;cursor:pointer}
+.mark:hover{opacity:.85}
+.titlewrap{flex:1;min-width:0}
+h1{font-family:var(--display);font-weight:800;font-size:44px;line-height:1;margin:2px 0 8px;letter-spacing:-.5px}
+h1 .g{color:var(--green)}
+.sub{color:var(--muted);font-size:13.5px;display:flex;align-items:center;gap:9px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);flex:0 0 8px}
+.meta{color:var(--muted);font-size:13px;white-space:nowrap;padding-top:6px;text-align:right}
+.meta b{color:var(--text);font-weight:500}
+
+.tabs{display:flex;margin-top:26px;border-bottom:1px solid var(--line);align-items:center;justify-content:space-between}
+.tab{background:none;border:0;color:var(--muted);padding:12px 22px;font-size:15px;letter-spacing:2px;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab:hover{color:var(--text)}
+.tab.on{color:var(--green);border-bottom-color:var(--green)}
+.tab .count{color:var(--text);margin-left:8px}
+.tab.on .count{color:var(--green)}
+.tabtools{display:flex;gap:8px;padding-bottom:8px}
+
+.card{border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);letter-spacing:2px;font-size:13px;flex-wrap:wrap}
+.card-h .hint{color:var(--muted);letter-spacing:1.5px;font-size:12px}
+.card-b{padding:18px 16px}
+
+input,select,textarea{background:#000;border:1px solid var(--line);border-radius:7px;color:var(--text);font-family:var(--mono);font-size:13px;padding:10px 13px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--green-dim)}
+input::placeholder,textarea::placeholder{color:#ffffff;opacity:.45}
+textarea{width:100%;min-height:190px;font-size:12.5px;line-height:1.6;resize:vertical}
+.btn{background:var(--green);color:#04140a;border:0;border-radius:7px;padding:10px 16px;font-size:12.5px;font-weight:700;letter-spacing:1.5px}
+.btn:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line);font-weight:400}
+.btn.ghost:hover{border-color:var(--muted)}
+.note{color:var(--muted);font-size:12.5px;line-height:1.7}
+.hidden{display:none!important}
+
+/* date fields — the browser's own calendar, made visible against the dark panel.
+   color-scheme:dark also gives the dropdown itself a dark palette. */
+input[type="date"]{color-scheme:dark;cursor:pointer;padding-right:10px}
+input[type="date"]::-webkit-calendar-picker-indicator{
+  filter:invert(1);opacity:.55;cursor:pointer;padding:2px;margin-left:6px}
+input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
+input[type="date"]:focus::-webkit-calendar-picker-indicator{opacity:1}
+input[type="date"]::-webkit-datetime-edit{color:var(--text)}
+input[type="date"]:invalid::-webkit-datetime-edit,
+input[type="date"]:not(:valid)::-webkit-datetime-edit{opacity:.45}
+
+/* search bar */
+.searchbar{display:flex;gap:10px;align-items:center;margin:22px 0 18px;flex-wrap:wrap}
+.searchbar input{flex:1;min-width:240px;font-size:15px;padding:14px 16px;border-color:var(--green-dim)}
+.searchbar input:focus{box-shadow:0 0 0 1px var(--green),0 0 18px rgba(124,255,79,.12)}
+
+/* totals */
+.totals{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:1px;background:var(--line-soft);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:22px}
+.tot{background:var(--panel-2);padding:15px 16px}
+.tot .k{color:var(--muted);font-size:11.5px;letter-spacing:1.8px;margin-bottom:8px}
+.tot .v{font-family:var(--display);font-weight:700;font-size:26px;line-height:1}
+.tot .v.green{color:var(--green)}.tot .v.gold{color:var(--gold)}.tot .v.red{color:var(--red)}
+.tot .s{color:var(--muted);font-size:11.5px;margin-top:7px}
+
+#tbl th{cursor:pointer}
+#lowTbl th{cursor:pointer}
+
+#lowTbl tbody tr{cursor:pointer}
+.tot.click{cursor:pointer;transition:background .15s}
+.tot.click:hover{background:#12160f}
+.tot.click .k:after{content:" ▸";color:var(--green)}
+
+
+/* category table */
+#catTbl td.catname{font-family:var(--display);font-weight:700;font-size:16px;display:flex;align-items:center;gap:9px}
+#catTbl td.strong{font-family:var(--display);font-weight:700;font-size:16px}
+#catTbl tbody tr{cursor:pointer}
+
+/* detail */
+.crumb{display:flex;align-items:center;gap:14px;margin:22px 0 18px}
+.back{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--text);font-size:17px;line-height:1;flex:0 0 40px}
+.back:hover{border-color:var(--green);color:var(--green)}
+.crumb h2{font-family:var(--display);font-weight:800;font-size:30px;margin:0;display:flex;align-items:center;gap:12px}
+.crumb .q{color:var(--muted);font-size:12.5px;letter-spacing:1.5px}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+.tscroll{overflow:auto;max-height:min(72vh,900px)}
+thead th{position:sticky;top:0;z-index:5;background:#0b0d0b;box-shadow:inset 0 -1px 0 var(--line)}
+th{text-align:right;color:var(--muted);font-weight:500;letter-spacing:1.5px;font-size:11.5px;padding:12px 16px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
+th:first-child,th:nth-child(2){text-align:left}
+th:hover{color:var(--text)}
+th .ar{color:var(--green)}
+td{padding:13px 16px;border-bottom:1px solid var(--line-soft);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+td:first-child,td:nth-child(2){text-align:left}
+tbody tr:hover{background:#0e120e}
+tfoot td{border-top:1px solid var(--line);border-bottom:0;color:var(--text);font-weight:700;background:var(--panel-2)}
+tfoot td{position:sticky;bottom:0;z-index:4;background:#0d100d}
+.pk{font-family:var(--display);font-weight:700;font-size:15px}
+.doi-cell{font-family:var(--display);font-weight:700;font-size:15px;border-radius:5px;padding:5px 10px;display:inline-block;min-width:56px;text-align:center}
+.d-crit{background:rgba(255,92,92,.22);color:#ff8a8a;box-shadow:inset 0 0 0 1px var(--red-dim)}
+.d-low{background:rgba(201,162,39,.18);color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold-dim)}
+.d-ok{background:rgba(124,255,79,.12);color:var(--green);box-shadow:inset 0 0 0 1px var(--green-dim)}
+.d-over{background:rgba(92,200,255,.14);color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue-dim)}
+.d-none{background:none;color:var(--muted);box-shadow:none;opacity:.5}
+.legend{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:11.5px;letter-spacing:1px;align-items:center}
+.legend span{display:flex;align-items:center;gap:7px}
+.sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+.orline{display:flex;align-items:center;gap:14px;color:var(--muted);letter-spacing:2px;font-size:12px}
+.orline:before,.orline:after{content:"";height:1px;background:var(--line);flex:1}
+.minifilter{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:11px;letter-spacing:1.5px}
+.minifilter select,.minifilter input{min-width:200px}
+.pills{display:flex;gap:10px;margin:22px 0 0;flex-wrap:wrap}
+.pill-btn{display:inline-flex;align-items:center;gap:10px;background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:11px 20px;font-size:13px;letter-spacing:2px}
+.pill-btn:hover{border-color:var(--muted);color:var(--text)}
+.pill-btn .pd{width:8px;height:8px;border-radius:50%;background:var(--line)}
+.pill-btn b{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:0;color:var(--muted)}
+.pill-btn.on{border-color:var(--green);color:var(--green);background:rgba(124,255,79,.07)}
+.pill-btn.on .pd{background:var(--green);box-shadow:0 0 8px var(--green)}
+.pill-btn.on b{color:var(--text)}
+#sheetResult table{font-size:12.5px}
+#sheetResult td,#sheetResult th{padding:8px 12px}
+.sheetrow{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.sheetrow label{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:11.5px;letter-spacing:1.5px}
+.sheetrow label:first-child{flex:1;min-width:280px}
+.sheetrow input{color:var(--text)}
+.chip{display:inline-block;border:1px solid var(--line);border-radius:5px;padding:4px 10px;font-size:11.5px;letter-spacing:1.2px;color:var(--muted);margin:2px 4px 2px 0}
+.chip.s1{color:var(--blue);border-color:var(--blue-dim)}
+.chip.s2{color:var(--gold);border-color:var(--gold-dim)}
+.chip.s3{color:var(--green);border-color:var(--green-dim)}
+.chip.bad{color:var(--red);border-color:var(--red-dim)}
+.age{font-family:var(--display);font-weight:700}
+#inTbl th,#wipTbl th,#dupTbl th,#aucTbl th{cursor:pointer}
+#dupTbl td.wrapcell{max-width:260px}
+td.thumb{padding:6px 10px;width:52px}
+img.slab{width:38px;height:52px;object-fit:cover;border-radius:4px;border:1px solid var(--line);background:#111;cursor:zoom-in;display:block}
+img.slab:hover{border-color:var(--green)}
+#whTbl a,#dupTbl a,#aucTbl a{color:var(--green);text-decoration:none;border-bottom:1px solid transparent}
+#whTbl a:hover,#dupTbl a:hover,#aucTbl a:hover{border-bottom-color:var(--green)}
+a{color:var(--green)}
+a.openlink{display:inline-block;width:38px;height:52px;line-height:52px;text-align:center;border:1px solid var(--line);border-radius:4px;color:var(--green);text-decoration:none}
+a.openlink:hover{border-color:var(--green)}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:80;cursor:zoom-out;padding:40px}
+.lightbox.on{display:flex}
+.lightbox img{max-width:min(560px,90vw);max-height:90vh;border-radius:10px;border:1px solid var(--line)}
+#whTbl th{cursor:pointer}
+
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:22px 0 18px;align-items:end}
+.filters label{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:11px;letter-spacing:1.5px;position:relative}
+.filters .wrap{position:relative;display:block}
+.filters .wrap input,.filters .wrap textarea{padding-right:30px}
+.fclear{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--muted);
+  font-size:15px;line-height:1;padding:4px 6px;border-radius:4px;display:none;opacity:.7}
+.fclear:hover{color:var(--red);opacity:1;background:#161b16}
+.filters .wrap.filled .fclear{display:block}
+.filters input,.filters select,.filters textarea{width:100%}
+.msel{position:relative}
+.mselbtn{width:100%;text-align:left;background:#000;border:1px solid var(--line);border-radius:7px;
+  color:var(--muted);font-family:var(--mono);font-size:13px;letter-spacing:0;text-transform:none;
+  padding:10px 26px 10px 13px;position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mselbtn:after{content:"▾";position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.mselbtn:hover{border-color:var(--muted)}
+.mselbtn.has{color:var(--green);border-color:var(--green-dim)}
+.mselpanel{display:none;position:fixed;z-index:90;width:300px;background:#0b0d0b;border:1px solid var(--line);
+  border-radius:8px;box-shadow:0 12px 30px rgba(0,0,0,.6);padding:8px;
+  font-family:var(--mono);font-size:13px;letter-spacing:0;text-transform:none;text-align:left;color:var(--text)}
+.mselpanel.open{display:block}
+.mselempty{color:var(--muted);padding:10px;line-height:1.6}
+.mselpicked{display:none;flex-wrap:wrap;gap:6px;margin-top:6px}
+.mselchip{display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+  font-family:var(--mono);font-size:13px;letter-spacing:0;line-height:1.3;padding:6px 10px;border-radius:6px;
+  background:rgba(124,255,79,.10);border:1px solid var(--green-dim);color:var(--text);
+  max-width:100%;white-space:normal;text-align:left}
+.mselchip .x{color:var(--green);font-size:13px;opacity:.8;flex:0 0 auto}
+.mselchip:hover{border-color:var(--red);background:rgba(255,92,92,.10)}
+.mselchip:hover .x{color:var(--red);opacity:1}
+.mselsearch{width:100%;margin-bottom:6px}
+
+.mselopts{max-height:260px;overflow:auto}
+.mselopt{display:flex;flex-direction:row;align-items:center;gap:9px;padding:7px 8px;border-radius:5px;cursor:pointer}
+.mselopt span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mselopt:hover{background:#12160f}
+.mselopt input{width:14px;height:14px;accent-color:#7CFF4F;flex:0 0 14px;margin:0}
+.mselopt span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mselfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding-top:8px;margin-top:6px;border-top:1px solid var(--line)}
+.filters textarea{min-height:38px;height:38px;resize:vertical;padding:10px 13px;font-size:13px;line-height:1.3}
+.filters textarea:focus{height:88px}
+.filters .fbtns{display:flex;gap:8px;grid-column:1/-1}
+#dupTbl td.wrapcell{white-space:normal;max-width:340px;font-family:var(--display);font-weight:600}
+#inTbl td.wrapcell,#wipTbl td.wrapcell,#fgTbl td.wrapcell{white-space:normal;max-width:300px}
+#inTbl tbody tr[data-po],#wipTbl tbody tr[data-po],#fgTbl tbody tr[data-po]{cursor:pointer}
+.polink{color:var(--green);border-bottom:1px solid transparent}
+tr:hover .polink{border-bottom-color:var(--green)}
+#poBody table th{cursor:default;font-size:11px}
+#poBody table td{padding:9px 12px}
+#poBody tr.drill{cursor:pointer}
+#poBody .chev{display:inline-block;width:16px;color:var(--muted);transition:transform .12s}
+#poBody tr.drill:hover .chev{color:var(--green)}
+#poBody tr.drill.open .chev{transform:rotate(90deg);color:var(--green)}
+#poBody tr.drill:hover{background:#0e120e}
+#poBody tr.drill.open{background:#0e120e}
+#poBody tr.drilldown td{background:#0b0e0b;border-left:2px solid var(--green-dim)}
+#inTbl a,#wipTbl a{color:var(--green);text-decoration:none;border-bottom:1px solid var(--green-dim)}
+#inTbl a:hover,#wipTbl a:hover{border-bottom-color:var(--green)}
+.chip.s3{margin:2px 0}
+#inTbl th:hover,#wipTbl th:hover,#dupTbl th:hover,#whTbl th:hover,#tbl th:hover,#fgTbl th:hover,#lowTbl th:hover{color:var(--green)}
+.selcol{width:64px;line-height:1.5;text-align:center!important;padding-left:12px!important;padding-right:6px!important}
+.selcol input{width:15px;height:15px;accent-color:#7CFF4F;cursor:pointer}
+.selbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--line);
+  background:rgba(124,255,79,.06)}
+.selbar b{font-family:var(--display);font-size:15px}
+.pgbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:14px 16px;border-top:1px solid var(--line)}
+.pg{background:transparent;border:1px solid var(--line);color:var(--text);border-radius:6px;padding:7px 12px;font-size:12.5px}
+.pg:hover:not(:disabled){border-color:var(--green);color:var(--green)}
+.pg.on{border-color:var(--green);color:var(--green);background:rgba(124,255,79,.08)}
+.pg:disabled{opacity:.35}
+.pgdots{color:var(--muted);padding:0 4px}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(18px);background:var(--green);color:#04140a;padding:12px 22px;border-radius:8px;font-size:13px;letter-spacing:1px;opacity:0;pointer-events:none;transition:.18s;z-index:60}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{background:var(--red);color:#fff}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---------- auction dashboard additions ---------- */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:18px}
+.kpi{background:var(--panel);border:1px solid var(--line);padding:13px 15px}
+.kpi .k{font-size:10.5px;letter-spacing:1.6px;color:var(--muted);opacity:.72}
+.kpi .v{font-family:var(--display);font-weight:800;font-size:27px;line-height:1.12;margin-top:5px;letter-spacing:-.5px}
+.kpi .s{font-size:11.5px;color:var(--muted);opacity:.72;margin-top:3px}
+.kpi.good .v{color:var(--green)} .kpi.bad .v{color:var(--red)} .kpi.gold .v{color:var(--gold)}
+
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:12px 10px;align-items:start}
+.fgrid label{display:block;font-size:10.5px;letter-spacing:1.4px;color:var(--muted);opacity:.72;margin-bottom:5px}
+.fgrid input,.fgrid select{width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+  font-family:var(--mono);font-size:12.5px;padding:7px 9px}
+.fgrid input:focus,.fgrid select:focus{outline:none;border-color:var(--green-dim)}
+.fgrid select[multiple]{min-height:82px}
+.pair{display:flex;gap:6px}
+
+.tscroll{overflow:auto;max-height:70vh;border:1px solid var(--line);background:var(--panel)}
+#lotTbl,#brkTbl{width:100%;border-collapse:collapse;font-size:12.5px}
+#lotTbl th,#brkTbl th{position:sticky;top:0;z-index:2;background:var(--panel-2);border-bottom:1px solid var(--line);
+  padding:9px 11px;text-align:left;font-size:10.5px;letter-spacing:1.3px;color:var(--muted);white-space:nowrap;cursor:pointer;user-select:none}
+#lotTbl th:hover,#brkTbl th:hover{color:var(--green)}
+#lotTbl th .ar,#brkTbl th .ar{color:var(--green);margin-left:5px}
+#lotTbl td,#brkTbl td{padding:8px 11px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
+#lotTbl tbody tr:hover,#brkTbl tbody tr:hover{background:var(--panel-2)}
+#lotTbl td.num,#brkTbl td.num{text-align:right;font-variant-numeric:tabular-nums}
+#lotTbl td.wrap,#brkTbl td.wrap{white-space:normal;min-width:190px;max-width:330px}
+.thumb{width:34px;height:46px;object-fit:cover;background:var(--panel-2);border:1px solid var(--line);display:block;cursor:zoom-in}
+.pos{color:var(--green)} .neg{color:var(--red)}
+.alink{color:var(--blue);text-decoration:none} .alink:hover{text-decoration:underline}
+.bar{height:3px;background:var(--line);margin-top:20px;overflow:hidden}
+.bar i{display:block;height:100%;width:30%;background:var(--green);animation:sl 1.1s infinite ease-in-out}
+@keyframes sl{0%{transform:translateX(-100%)}100%{transform:translateX(340%)}}
+.err{border:1px solid var(--red-dim);background:#1a0c0c;color:var(--red);padding:11px 13px;font-size:12.5px;margin-top:14px}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="titlewrap">
+    <h1>Arena <span class="g">Auctions</span></h1>
+    <div class="sub"><span class="dot"></span><span>Sold lots by sport, grade and set &middot; filter the book, read the margin</span></div>
+  </div>
+  <div class="meta">
+    <div><b id="mLots">&mdash;</b> lots &middot; <b id="mCard">&mdash;</b></div>
+    <div id="mAsOf">&mdash;</div>
+    <div id="mGen" style="opacity:.6"></div>
+  </div>
+</div>
+
+<div class="tabs">
+  <div>
+    <button class="tab on" data-page="lots">LOTS</button>
+    <button class="tab" data-page="break">BREAKDOWN</button>
+  </div>
+  <div class="tabtools">
+    <button class="btn ghost" id="reload" title="Pull live data">REFRESH &#8635;</button>
+    <button class="btn ghost" id="csv">EXPORT CSV</button>
+  </div>
+</div>
+
+<!-- ============ LOTS ============ -->
+<div id="page-lots">
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-h">FILTERS</div>
+    <div class="card-b">
+      <div class="fgrid">
+        <div><label>PLAYER</label><input id="fPlayer" placeholder="Kobe Bryant, Mbappe" spellcheck="false"></div>
+        <div><label>SET</label><input id="fSet" placeholder="Topps Chrome" spellcheck="false"></div>
+        <div><label>SPORT</label><select id="fSport" multiple></select></div>
+        <div><label>GRADE</label><select id="fGrade" multiple></select></div>
+        <div><label>STATUS</label><select id="fStatus" multiple></select></div>
+        <div><label>TAG</label><select id="fTag" multiple></select></div>
+        <div><label>SOLD FROM</label><input id="fFrom" type="date"></div>
+        <div><label>SOLD TO</label><input id="fTo" type="date"></div>
+        <div><label>SOLD PRICE</label><div class="pair"><input id="fMinSold" type="number" placeholder="min"><input id="fMaxSold" type="number" placeholder="max"></div></div>
+        <div><label>PO NUMBER</label><input id="fPo" placeholder="PO-1234" spellcheck="false"></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" id="apply" style="flex:1">APPLY</button>
+          <button class="btn ghost" id="clear">CLEAR</button>
+        </div>
+      </div>
+      <p class="note" style="margin-bottom:0">Text boxes match on any part of the value, and take a comma-separated list. Multi-selects are any-of &mdash; hold &#8984;/Ctrl to pick several. Everything filters server-side against the full book, not just the page on screen.</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="card-h"><span id="lotHead">LOTS</span></div>
+    <div class="card-b" style="padding:0">
+      <div class="tscroll">
+        <table id="lotTbl"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+    <div class="card-b" style="border-top:1px solid var(--line)">
+      <div class="pgbar" id="lotPager"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ BREAKDOWN ============ -->
+<div id="page-break" class="hidden">
+  <div class="card" style="margin-top:16px">
+    <div class="card-h">
+      <span>TOTALS BY</span>
+      <select id="grpBy" style="background:var(--panel-2);border:1px solid var(--line);color:var(--text);font-family:var(--mono);font-size:12px;padding:5px 8px;margin-left:10px">
+        <option value="SPORT">SPORT</option>
+        <option value="GRADE">GRADE</option>
+        <option value="AUCTION_STATUS">STATUS</option>
+        <option value="TAG">TAG</option>
+        <option value="SET_NAME">SET</option>
+        <option value="PO_NUMBER">PO NUMBER</option>
+      </select>
+    </div>
+    <div class="card-b" style="padding:0">
+      <div class="tscroll">
+        <table id="brkTbl"><thead></thead><tbody></tbody><tfoot></tfoot></table>
+      </div>
+    </div>
+  </div>
+  <p class="note" id="brkNote">Reads the whole book once, then groups it here. The filters on the LOTS tab apply.</p>
+</div>
+
+<div id="msg"></div>
+
+<script>
+/* Arena Auctions — standalone dashboard.
+   Data comes from /api/auction, the same open-column endpoint the Buying
+   Inventory app uses: whatever the Metabase question returns is what the
+   table shows. Locally there is no serverless runtime and no Metabase key,
+   so we read the deployed endpoint instead — it sends CORS for any origin. */
+const LOCAL = ["localhost","127.0.0.1","[::1]",""].includes(location.hostname);
+const API = LOCAL ? "https://buying-inventory.vercel.app/api/auction" : "/api/auction";
+const BUILD = "2026-09-29a";
+
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const fmt=n=>Number(n||0).toLocaleString();
+const usd=n=>(n<0?"-":"")+"$"+Math.abs(Number(n||0)).toLocaleString(undefined,{maximumFractionDigits:0});
+const pct=n=>n===null||n===undefined||isNaN(n)?"—":(n>0?"+":"")+Number(n).toFixed(1)+"%";
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const day=v=>{const t=Date.parse(v);return isNaN(t)?"—":new Date(t).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"});};
+
+const S={page:1,sort:"SOLD_AT",dir:"desc",rows:[],meta:null,all:null,allAt:0};
+
+/* the columns worth showing, in order — anything else the question adds
+   still filters and exports, it just doesn't crowd the table */
+const COLS=[
+  {k:"FRONT_SLAB_PICTURE_URL",t:"",     kind:"img",  nosort:true},
+  {k:"PLAYER_NAME",  t:"PLAYER",        kind:"wrap"},
+  {k:"SET_NAME",     t:"SET",           kind:"wrap"},
+  {k:"SPORT",        t:"SPORT"},
+  {k:"GRADE",        t:"GRADE"},
+  {k:"SOLD_AT",      t:"SOLD",          kind:"date"},
+  {k:"ESTIMATED_VALUE",t:"EST VALUE",   kind:"usd"},
+  {k:"PURCHASE_COST",t:"COST",          kind:"usd"},
+  {k:"SOLD_PRICE",   t:"SOLD PRICE",    kind:"usd"},
+  {k:"SOLD_VS_EV",   t:"VS EV",         kind:"signed"},
+  {k:"MARGIN",       t:"MARGIN",        kind:"pctcell"},
+  {k:"TOTAL_BIDS",   t:"BIDS",          kind:"int"},
+  {k:"AUCTION_STATUS",t:"STATUS"},
+  {k:"PO_NUMBER",    t:"PO"},
+  {k:"AUCTION_URL",  t:"",              kind:"link", nosort:true}
+];
+
+/* ---------- query building ---------- */
+function filters(){
+  const p=new URLSearchParams();
+  const put=(k,v)=>{ v=(v||"").trim(); if(v) p.set(k,v); };
+  put("PLAYER_NAME",$("#fPlayer").value);
+  put("SET_NAME",$("#fSet").value);
+  put("PO_NUMBER",$("#fPo").value);
+  const multi=(el,col)=>{const v=[...el.selectedOptions].map(o=>o.value).filter(Boolean);if(v.length)p.set(col,v.join(","));};
+  multi($("#fSport"),"SPORT"); multi($("#fGrade"),"GRADE");
+  multi($("#fStatus"),"AUCTION_STATUS"); multi($("#fTag"),"TAG");
+  put("from_SOLD_AT",$("#fFrom").value); put("to_SOLD_AT",$("#fTo").value);
+  put("min_SOLD_PRICE",$("#fMinSold").value); put("max_SOLD_PRICE",$("#fMaxSold").value);
+  return p;
+}
+
+async function load(){
+  const p=filters();
+  p.set("limit","100"); p.set("offset",String((S.page-1)*100));
+  p.set("sort",S.sort); p.set("dir",S.dir);
+  $("#msg").innerHTML='<div class="bar"><i></i></div>';
+  try{
+    const r=await fetch(API+"?"+p.toString());
+    const b=await r.json();
+    if(!b.ok) throw new Error(b.error||"the endpoint returned no data");
+    S.rows=b.rows||[]; S.meta=b;
+    $("#msg").innerHTML="";
+    fillFacets(b); renderKpis(b); renderTable(b);
+  }catch(e){
+    $("#msg").innerHTML='<div class="err">Could not load auctions — '+esc(e.message)+'</div>';
+  }
+}
+
+/* ---------- filter options, filled from the endpoint's own facets ---------- */
+let facetsDone=false;
+function fillFacets(b){
+  if(facetsDone||!b.facets) return;
+  const fill=(el,col)=>{
+    const f=b.facets[col]; if(!f) return;
+    el.innerHTML=f.values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+  };
+  fill($("#fSport"),"SPORT"); fill($("#fGrade"),"GRADE");
+  fill($("#fStatus"),"AUCTION_STATUS"); fill($("#fTag"),"TAG");
+  facetsDone=true;
+}
+
+/* ---------- KPIs ---------- */
+function renderKpis(b){
+  const t=b.totals||{}, a=b.totals_all||{};
+  const filtered=(b.matched||0)!==(b.total||0);
+  const avgSold=t.sold_count?t.sold/t.sold_count:0;
+  const tile=(k,v,s,cls)=>`<div class="kpi ${cls||""}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s||""}</div></div>`;
+  $("#kpis").innerHTML=[
+    tile("LOTS",fmt(t.lots),filtered?`of ${fmt(a.lots)} in the book`:"the whole book"),
+    tile("TOTAL COST",usd(t.cost),"what these lots cost"),
+    tile("TOTAL SOLD",usd(t.sold),`${fmt(t.sold_count)} sold`),
+    tile("PROFIT",usd(t.profit),"sold minus cost of sold",t.profit>=0?"good":"bad"),
+    tile("MARGIN",pct(t.margin),"profit ÷ cost of sold",t.margin>=0?"good":"bad"),
+    tile("AVG SOLD",usd(avgSold),"per lot sold","gold")
+  ].join("");
+  $("#mLots").textContent=fmt(b.matched);
+  $("#mCard").textContent="build "+BUILD;
+  $("#mAsOf").textContent="as of "+new Date().toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});
+  if(b.generated) $("#mGen").textContent="data pulled "+new Date(b.generated).toLocaleString();
+  $("#lotHead").textContent=`LOTS · ${fmt(b.matched)}`+(filtered?` of ${fmt(b.total)}`:"");
+}
+
+/* ---------- table ---------- */
+function cell(row,c){
+  const v=row[c.k];
+  switch(c.kind){
+    case "img": return v?`<td><img class="thumb" src="${esc(v)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'" onclick="window.open('${esc(v)}','_blank')"></td>`:`<td></td>`;
+    case "link": return v?`<td><a class="alink" href="${esc(v)}" target="_blank" rel="noopener">OPEN ↗</a></td>`:`<td></td>`;
+    case "wrap": return `<td class="wrap">${esc(v||"—")}</td>`;
+    case "date": return `<td class="num">${day(v)}</td>`;
+    case "usd":  return `<td class="num">${v===null||v===undefined||v===""?"—":usd(v)}</td>`;
+    case "int":  return `<td class="num">${v===null||v===undefined||v===""?"—":fmt(v)}</td>`;
+    case "signed":{
+      if(v===null||v===undefined||v==="") return `<td class="num">—</td>`;
+      const n=Number(v);
+      return `<td class="num ${n>0?"pos":n<0?"neg":""}">${usd(n)}</td>`;
+    }
+    case "pctcell":{
+      if(v===null||v===undefined||v==="") return `<td class="num">—</td>`;
+      const n=Number(v);
+      return `<td class="num ${n>0?"pos":n<0?"neg":""}">${pct(n)}</td>`;
+    }
+    default: return `<td>${esc(v==null||v===""?"—":v)}</td>`;
+  }
+}
+
+function renderTable(b){
+  const cols=COLS.filter(c=>!b.columns||b.columns.includes(c.k)||c.k==="");
+  $("#lotTbl thead").innerHTML="<tr>"+cols.map(c=>{
+    const on=S.sort===c.k;
+    return `<th ${c.nosort?"":`data-k="${c.k}"`}>${esc(c.t)}${on?`<span class="ar">${S.dir==="asc"?"▲":"▼"}</span>`:""}</th>`;
+  }).join("")+"</tr>";
+  $("#lotTbl tbody").innerHTML=b.rows.length
+    ? b.rows.map(r=>"<tr>"+cols.map(c=>cell(r,c)).join("")+"</tr>").join("")
+    : `<tr><td colspan="${cols.length}" style="padding:24px;text-align:center;color:var(--muted)">No lots match these filters.</td></tr>`;
+  $$("#lotTbl th[data-k]").forEach(th=>th.onclick=()=>{
+    const k=th.dataset.k;
+    if(S.sort===k) S.dir=S.dir==="asc"?"desc":"asc"; else { S.sort=k; S.dir="desc"; }
+    S.page=1; load();
+  });
+  pager($("#lotPager"),S.page,b.pages||1,b.matched||0,p=>{S.page=p;load();});
+}
+
+function pager(el,page,pages,total,onGo){
+  if(!el) return;
+  if(pages<=1){ el.innerHTML=`<span class="note">${fmt(total)} row${total===1?"":"s"} · one page</span>`; return; }
+  const win=2,out=[];
+  const add=p=>out.push(`<button class="pg${p===page?" on":""}" data-p="${p}">${p}</button>`);
+  add(1);
+  if(page-win>2) out.push(`<span class="pgdots">…</span>`);
+  for(let p=Math.max(2,page-win);p<=Math.min(pages-1,page+win);p++) add(p);
+  if(page+win<pages-1) out.push(`<span class="pgdots">…</span>`);
+  if(pages>1) add(pages);
+  el.innerHTML=`<button class="pg" data-p="${Math.max(1,page-1)}" ${page===1?"disabled":""}>‹</button>
+    ${out.join("")}
+    <button class="pg" data-p="${Math.min(pages,page+1)}" ${page===pages?"disabled":""}>›</button>
+    <span class="note" style="margin-left:12px">page ${fmt(page)} of ${fmt(pages)} · ${fmt(total)} rows</span>`;
+  el.querySelectorAll(".pg").forEach(btn=>btn.onclick=()=>{
+    const p=Number(btn.dataset.p); if(p===page) return;
+    onGo(p);
+    const box=el.closest(".card").querySelector(".tscroll"); if(box) box.scrollTop=0;
+  });
+}
+
+/* ---------- breakdown: read the filtered book once, group it here ----------
+   The endpoint pages at 1000 rows, so this walks the pages and caches the
+   result against the current filter string. */
+async function allRows(){
+  const key=filters().toString();
+  if(S.all&&S.allAt===key) return S.all;
+  const out=[]; let off=0, pages=1;
+  do{
+    const p=filters(); p.set("limit","1000"); p.set("offset",String(off));
+    const r=await fetch(API+"?"+p.toString());
+    const b=await r.json();
+    if(!b.ok) throw new Error(b.error||"no data");
+    out.push(...(b.rows||[])); pages=b.pages||1; off+=1000;
+  } while(out.length<1000*pages && off<1000*pages);
+  S.all=out; S.allAt=key;
+  return out;
+}
+
+const numv=v=>{const n=parseFloat(String(v==null?"":v).replace(/[$,\s]/g,""));return isNaN(n)?0:n;};
+
+async function renderBreak(){
+  const col=$("#grpBy").value;
+  $("#msg").innerHTML='<div class="bar"><i></i></div>';
+  try{
+    const rows=await allRows();
+    $("#msg").innerHTML="";
+    const g=new Map();
+    rows.forEach(r=>{
+      const k=r[col]==null||r[col]===""?"—":String(r[col]);
+      let o=g.get(k);
+      if(!o){ o={k,lots:0,cost:0,sold:0,soldCount:0,costOfSold:0,bids:0}; g.set(k,o); }
+      o.lots++; o.cost+=numv(r.PURCHASE_COST); o.bids+=numv(r.TOTAL_BIDS);
+      const sp=numv(r.SOLD_PRICE);
+      if(sp){ o.sold+=sp; o.soldCount++; o.costOfSold+=numv(r.PURCHASE_COST); }
+    });
+    const list=[...g.values()].map(o=>({...o,
+      profit:o.sold-o.costOfSold,
+      margin:o.costOfSold?((o.sold-o.costOfSold)/o.costOfSold)*100:null,
+      avg:o.soldCount?o.sold/o.soldCount:0
+    })).sort((a,b)=>b.sold-a.sold);
+
+    const head=["",  "LOTS","SOLD #","COST","SOLD","PROFIT","MARGIN","AVG SOLD","BIDS"];
+    $("#brkTbl thead").innerHTML="<tr>"+head.map((h,i)=>`<th${i?' style="text-align:right"':""}>${h||col.replace(/_/g," ")}</th>`).join("")+"</tr>";
+    $("#brkTbl tbody").innerHTML=list.map(o=>`<tr>
+      <td class="wrap">${esc(o.k)}</td>
+      <td class="num">${fmt(o.lots)}</td>
+      <td class="num">${fmt(o.soldCount)}</td>
+      <td class="num">${usd(o.cost)}</td>
+      <td class="num">${usd(o.sold)}</td>
+      <td class="num ${o.profit>=0?"pos":"neg"}">${usd(o.profit)}</td>
+      <td class="num ${o.margin>=0?"pos":"neg"}">${pct(o.margin)}</td>
+      <td class="num">${usd(o.avg)}</td>
+      <td class="num">${fmt(o.bids)}</td></tr>`).join("");
+    const T=list.reduce((a,o)=>({lots:a.lots+o.lots,soldCount:a.soldCount+o.soldCount,cost:a.cost+o.cost,
+      sold:a.sold+o.sold,costOfSold:a.costOfSold+o.costOfSold,bids:a.bids+o.bids}),
+      {lots:0,soldCount:0,cost:0,sold:0,costOfSold:0,bids:0});
+    const tp=T.sold-T.costOfSold, tm=T.costOfSold?(tp/T.costOfSold)*100:null;
+    $("#brkTbl tfoot").innerHTML=`<tr style="border-top:2px solid var(--line)">
+      <td><b>TOTAL</b></td><td class="num"><b>${fmt(T.lots)}</b></td><td class="num"><b>${fmt(T.soldCount)}</b></td>
+      <td class="num"><b>${usd(T.cost)}</b></td><td class="num"><b>${usd(T.sold)}</b></td>
+      <td class="num ${tp>=0?"pos":"neg"}"><b>${usd(tp)}</b></td>
+      <td class="num ${tm>=0?"pos":"neg"}"><b>${pct(tm)}</b></td>
+      <td class="num">—</td><td class="num"><b>${fmt(T.bids)}</b></td></tr>`;
+    $("#brkNote").textContent=`${fmt(rows.length)} lots grouped into ${fmt(list.length)} ${col.replace(/_/g," ").toLowerCase()} values. Filters from the LOTS tab apply.`;
+  }catch(e){
+    $("#msg").innerHTML='<div class="err">Could not build the breakdown — '+esc(e.message)+'</div>';
+  }
+}
+
+/* ---------- CSV ---------- */
+async function exportCsv(){
+  $("#msg").innerHTML='<div class="bar"><i></i></div>';
+  try{
+    const rows=await allRows();
+    $("#msg").innerHTML="";
+    if(!rows.length) return;
+    const cols=Object.keys(rows[0]);
+    const q=v=>{const s=v==null?"":String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+    const csv=[cols.join(","),...rows.map(r=>cols.map(c=>q(r[c])).join(","))].join("\n");
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+    a.download="arena-auctions-"+new Date().toISOString().slice(0,10)+".csv";
+    a.click(); URL.revokeObjectURL(a.href);
+  }catch(e){
+    $("#msg").innerHTML='<div class="err">Export failed — '+esc(e.message)+'</div>';
+  }
+}
+
+/* ---------- page switching ---------- */
+let currentPage="lots";
+$$(".tab[data-page]").forEach(b=>b.onclick=()=>{
+  $$(".tab[data-page]").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+  const pg=b.dataset.page; currentPage=pg;
+  $("#page-lots").classList.toggle("hidden",pg!=="lots");
+  $("#page-break").classList.toggle("hidden",pg!=="break");
+  if(pg==="break") renderBreak();
+});
+
+/* ---------- wiring ---------- */
+$("#apply").onclick=()=>{ S.page=1; S.all=null; load(); if(currentPage==="break") renderBreak(); };
+$("#clear").onclick=()=>{
+  ["#fPlayer","#fSet","#fPo","#fFrom","#fTo","#fMinSold","#fMaxSold"].forEach(s=>$(s).value="");
+  ["#fSport","#fGrade","#fStatus","#fTag"].forEach(s=>$$(s+" option").forEach(o=>o.selected=false));
+  S.page=1; S.all=null; load();
+};
+$("#reload").onclick=()=>{ S.all=null; load(); if(currentPage==="break") renderBreak(); };
+$("#csv").onclick=exportCsv;
+$("#grpBy").onchange=renderBreak;
+["#fPlayer","#fSet","#fPo"].forEach(s=>$(s).addEventListener("keydown",e=>{
+  if(e.key==="Enter"){ S.page=1; S.all=null; load(); }
+}));
+
+load();
+</script>
+</body>
+</html>
