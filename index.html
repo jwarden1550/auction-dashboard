@@ -433,6 +433,10 @@ const BUILD = "2026-09-29a";
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const fmt=n=>Number(n||0).toLocaleString();
 const usd=n=>(n<0?"-":"")+"$"+Math.abs(Number(n||0)).toLocaleString(undefined,{maximumFractionDigits:0});
+/* Table money: up to 2dp, so $2.31 reads as $2.31 and $7 stays $7. Rounding
+   these to whole dollars made the derived columns look wrong — a $2.31 cost
+   and $7 sale shown as "$2" and "$7" implies a 71% margin, not the true 67%. */
+const usdc=n=>(n<0?"-":"")+"$"+Math.abs(Number(n||0)).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:2});
 const pct=n=>n===null||n===undefined||isNaN(n)?"—":(n>0?"+":"")+Number(n).toFixed(1)+"%";
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 /* 9/30/26. Pinned to en-US so the order stays month-first rather than
@@ -456,15 +460,21 @@ const COLS=[
   {k:"SPORT",        t:"SPORT"},
   {k:"GRADE",        t:"GRADE"},
   {k:"SOLD_AT",      t:"SOLD",          kind:"date"},
-  {k:"ESTIMATED_VALUE",t:"EST VALUE",   kind:"usd"},
+  /* Ordered as the money moves: the three figures we know, then the three
+     derived from them. Each derived column sits next to what it is made of —
+     VS. EV after SOLD PRICE and EST VALUE, PROFIT after SOLD PRICE and
+     PURCHASE COST, MARGIN % straight after PROFIT. */
   {k:"PURCHASE_COST",t:"PURCHASE COST", kind:"usd"},
+  {k:"ESTIMATED_VALUE",t:"EST VALUE",   kind:"usd"},
   {k:"SOLD_PRICE",   t:"SOLD PRICE",    kind:"usd"},
   {k:"SOLD_VS_EV",   t:"SOLD PRICE VS. EV", kind:"signed"},
-  {k:"MARGIN",       t:"MARGIN",        kind:"marginpct", nosort:true},
+  {k:"MARGIN",       t:"PROFIT $",      kind:"signed"},
+  {k:"MARGIN_PCT",   t:"MARGIN %",      kind:"marginpct", nosort:true, always:true},
   {k:"TOTAL_BIDS",   t:"BIDS",          kind:"int"},
   {k:"AUCTION_STATUS",t:"STATUS"},
   {k:"PO_NUMBER",    t:"PO"},
-  {k:"AUCTION_URL",  t:"",              kind:"link", nosort:true}
+  {k:"PUBLIC_URL",   t:"",              kind:"viewcalc", nosort:true, always:true},
+  {k:"CARD_URL",     t:"",              kind:"admin", nosort:true}
 ];
 
 /* ---------- query building ---------- */
@@ -533,19 +543,36 @@ function renderKpis(b){
 }
 
 /* ---------- table ---------- */
+/* The completed-auctions endpoint (Metabase card 39238) emits an
+   admin.arenaclub.com/auctions/<id> link, but admin has no /auctions route, so
+   it 404s. It has no public URL either, so build the same slug the pipeline
+   builds in SQL: <sport>-<set>-<player>-8AC<number padded to 9>. */
+const pubUrl=r=>{
+  const num=r["8ac_number"];
+  if(num===null||num===undefined||num==="") return "";
+  const slug=[r.SPORT,r.SET_NAME,r.PLAYER_NAME].map(x=>String(x==null?"":x)).join(" ")
+    .replace(/[^A-Za-z0-9]+/g,"-").replace(/^-+|-+$/g,"").toLowerCase();
+  if(!slug) return "";
+  return "https://arenaclub.com/cards/"+slug+"-8AC"+String(num).padStart(9,"0");
+};
 function cell(row,c){
   const v=row[c.k];
   switch(c.kind){
     case "img": return v?`<td><img class="thumb" src="${esc(v)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'" onclick="window.open('${esc(v)}','_blank')"></td>`:`<td></td>`;
+    case "viewcalc":{
+      const u=pubUrl(row);
+      return u?`<td><a class="alink" href="${esc(u)}" target="_blank" rel="noopener">VIEW ↗</a></td>`:`<td></td>`;
+    }
+    case "admin": return v?`<td><a class="alink" style="opacity:.62" href="${esc(v)}" target="_blank" rel="noopener">ADMIN ↗</a></td>`:`<td></td>`;
     case "link": return v?`<td><a class="alink" href="${esc(v)}" target="_blank" rel="noopener">OPEN ↗</a></td>`:`<td></td>`;
     case "wrap": return `<td class="wrap">${esc(v||"—")}</td>`;
     case "date": return `<td class="num">${day(v)}</td>`;
-    case "usd":  return `<td class="num">${v===null||v===undefined||v===""?"—":usd(v)}</td>`;
+    case "usd":  return `<td class="num">${v===null||v===undefined||v===""?"—":usdc(v)}</td>`;
     case "int":  return `<td class="num">${v===null||v===undefined||v===""?"—":fmt(v)}</td>`;
     case "signed":{
       if(v===null||v===undefined||v==="") return `<td class="num">—</td>`;
       const n=Number(v);
-      return `<td class="num ${n>0?"pos":n<0?"neg":""}">${usd(n)}</td>`;
+      return `<td class="num ${n>0?"pos":n<0?"neg":""}">${usdc(n)}</td>`;
     }
     /* (sold - cost) / sold — margin on revenue. The endpoint's MARGIN column
        is sold minus cost in DOLLARS, so rendering it as a percentage was
@@ -568,7 +595,7 @@ function cell(row,c){
 }
 
 function renderTable(b){
-  const cols=COLS.filter(c=>!b.columns||b.columns.includes(c.k)||c.k==="");
+  const cols=COLS.filter(c=>c.always||!b.columns||b.columns.includes(c.k)||c.k==="");
   $("#lotTbl thead").innerHTML="<tr>"+cols.map(c=>{
     const on=S.sort===c.k;
     return `<th ${c.nosort?"":`data-k="${c.k}"`}>${esc(c.t)}${on?`<span class="ar">${S.dir==="asc"?"▲":"▼"}</span>`:""}</th>`;
