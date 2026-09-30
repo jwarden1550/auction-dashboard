@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Arena Auctions · Sold Lots Dashboard</title>
+<title>Arena Club Auction Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Archivo:wght@600;700;800&display=swap" rel="stylesheet">
@@ -24,7 +24,7 @@ button{font-family:var(--mono);cursor:pointer}
 .mark{width:104px;height:auto;flex:0 0 104px;margin-top:4px;display:block;cursor:pointer}
 .mark:hover{opacity:.85}
 .titlewrap{flex:1;min-width:0}
-h1{font-family:var(--display);font-weight:800;font-size:44px;line-height:1;margin:2px 0 8px;letter-spacing:-.5px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,4.4vw,44px);line-height:1.04;margin:2px 0 8px;letter-spacing:-.5px}
 h1 .g{color:var(--green)}
 .sub{color:var(--muted);font-size:13.5px;display:flex;align-items:center;gap:9px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);flex:0 0 8px}
@@ -288,7 +288,7 @@ tr:hover .polink{border-bottom-color:var(--green)}
 
 <div class="top">
   <div class="titlewrap">
-    <h1>Arena <span class="g">Auctions</span></h1>
+    <h1>Arena Club <span class="g">Auction</span> Dashboard</h1>
     <div class="sub"><span class="dot"></span><span>Sold lots by sport, grade and set &middot; filter the book, read the margin</span></div>
   </div>
   <div class="meta">
