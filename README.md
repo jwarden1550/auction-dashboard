@@ -15,6 +15,20 @@ admin. Click a header to sort; the pager walks 100 at a time.
 set or PO, with cost, sold, profit, margin, average sold and bids per group
 and a TOTAL row that ties back to the KPI tiles.
 
+**PIPELINE** — what is live and what is queued, for one seller account
+(`AUCTION_ACCOUNT`, default slabpacks@arenaclub.com). Two views:
+
+*In auction* is `auction.STATUS = 'active'` — lots taking bids now, with hours
+left, current bid, bid count, reserve and the closing-soon count.
+
+*Waiting* is items sitting `in_marketplace` with no live auction. An item leaves
+`in_marketplace` the moment its lot goes active, so the two views cannot
+double-count (measured: zero overlap).
+
+Both show SECTION — the collection the card sits in on the account, Shoebox or
+Auctions, read from `public.collections`. Verified against the account UI:
+Auctions 3,079 / Shoebox 701, whose live lots are 55 + 93 = 148.
+
 **EXPORT CSV** — the filtered book, every column, not just the page.
 
 ## Deploy
@@ -55,3 +69,11 @@ when the question changes shape.
 
 It answers with `columns`, `facets`, `matched`, `totals` for the current
 filter, `totals_all` for the whole book, and the page of `rows`.
+
+`GET /api/pipeline?view=active|waiting` takes the same filters and answers the
+same shape. It runs its SQL through Metabase's native-query endpoint rather than
+a saved question, so the SQL lives in this repo. Two things that cost an hour to
+learn, both commented in the file: `INSERT` and `COLLECTION` are reserved words
+in Snowflake and must be quoted, and an ad-hoc native query is capped at 2,000
+rows regardless of any requested constraint — the loader pages with
+LIMIT/OFFSET to get past it.

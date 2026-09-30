@@ -237,6 +237,12 @@ tr:hover .polink{border-bottom-color:var(--green)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
 /* ---------- auction dashboard additions ---------- */
+.sec{display:inline-block;padding:2px 7px;border:1px solid var(--line);font-size:10.5px;letter-spacing:1px}
+.sec.shoebox{color:var(--gold);border-color:var(--gold-dim)}
+.sec.auctions{color:var(--green);border-color:var(--green-dim)}
+.soon{color:var(--red)}
+.pills{display:flex;gap:8px}
+.pill-btn b{margin-left:8px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:18px}
 .kpi{background:var(--panel);border:1px solid var(--line);padding:13px 15px}
 .kpi .k{font-size:10.5px;letter-spacing:1.6px;color:var(--muted);opacity:.72}
@@ -253,15 +259,15 @@ tr:hover .polink{border-bottom-color:var(--green)}
 .pair{display:flex;gap:6px}
 
 .tscroll{overflow:auto;max-height:70vh;border:1px solid var(--line);background:var(--panel)}
-#lotTbl,#brkTbl{width:100%;border-collapse:collapse;font-size:12.5px}
-#lotTbl th,#brkTbl th{position:sticky;top:0;z-index:2;background:var(--panel-2);border-bottom:1px solid var(--line);
+#lotTbl,#brkTbl,#pipeTbl{width:100%;border-collapse:collapse;font-size:12.5px}
+#lotTbl th,#brkTbl th,#pipeTbl th{position:sticky;top:0;z-index:2;background:var(--panel-2);border-bottom:1px solid var(--line);
   padding:9px 11px;text-align:left;font-size:10.5px;letter-spacing:1.3px;color:var(--muted);white-space:nowrap;cursor:pointer;user-select:none}
-#lotTbl th:hover,#brkTbl th:hover{color:var(--green)}
-#lotTbl th .ar,#brkTbl th .ar{color:var(--green);margin-left:5px}
-#lotTbl td,#brkTbl td{padding:8px 11px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
-#lotTbl tbody tr:hover,#brkTbl tbody tr:hover{background:var(--panel-2)}
-#lotTbl td.num,#brkTbl td.num{text-align:right;font-variant-numeric:tabular-nums}
-#lotTbl td.wrap,#brkTbl td.wrap{white-space:normal;min-width:190px;max-width:330px}
+#lotTbl th:hover,#brkTbl th:hover,#pipeTbl th:hover{color:var(--green)}
+#lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar{color:var(--green);margin-left:5px}
+#lotTbl td,#brkTbl td,#pipeTbl td{padding:8px 11px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
+#lotTbl tbody tr:hover,#brkTbl tbody tr:hover,#pipeTbl tbody tr:hover{background:var(--panel-2)}
+#lotTbl td.num,#brkTbl td.num,#pipeTbl td.num{text-align:right;font-variant-numeric:tabular-nums}
+#lotTbl td.wrap,#brkTbl td.wrap,#pipeTbl td.wrap{white-space:normal;min-width:190px;max-width:330px}
 .thumb{width:34px;height:46px;object-fit:cover;background:var(--panel-2);border:1px solid var(--line);display:block;cursor:zoom-in}
 .pos{color:var(--green)} .neg{color:var(--red)}
 .alink{color:var(--blue);text-decoration:none} .alink:hover{text-decoration:underline}
@@ -288,6 +294,7 @@ tr:hover .polink{border-bottom-color:var(--green)}
 <div class="tabs">
   <div>
     <button class="tab on" data-page="lots">LOTS</button>
+    <button class="tab" data-page="pipe">PIPELINE <span class="count" id="pipeTabCount"></span></button>
     <button class="tab" data-page="break">BREAKDOWN</button>
   </div>
   <div class="tabtools">
@@ -333,6 +340,46 @@ tr:hover .polink{border-bottom-color:var(--green)}
     </div>
     <div class="card-b" style="border-top:1px solid var(--line)">
       <div class="pgbar" id="lotPager"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PIPELINE ============ -->
+<div id="page-pipe" class="hidden">
+
+  <div class="kpis" id="pipeKpis"></div>
+
+  <div class="pills" style="margin-top:16px">
+    <button class="pill-btn on" data-pv="active"><span class="pd"></span>IN AUCTION<b id="pillActive">0</b></button>
+    <button class="pill-btn" data-pv="waiting"><span class="pd"></span>WAITING<b id="pillWaiting">0</b></button>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="card-h">FILTERS</div>
+    <div class="card-b">
+      <div class="fgrid">
+        <div><label>PLAYER</label><input id="pPlayer" placeholder="Kobe Bryant" spellcheck="false"></div>
+        <div><label>SET</label><input id="pSet" placeholder="Topps Chrome" spellcheck="false"></div>
+        <div><label>SECTION</label><select id="pColl" multiple></select></div>
+        <div><label>SPORT</label><select id="pSport" multiple></select></div>
+        <div><label>TAG</label><select id="pTag" multiple></select></div>
+        <div><label>GRADE</label><select id="pGrade" multiple></select></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" id="pApply" style="flex:1">APPLY</button>
+          <button class="btn ghost" id="pClear">CLEAR</button>
+        </div>
+      </div>
+      <p class="note" style="margin-bottom:0" id="pipeNote"></p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="card-h"><span id="pipeHead">LOTS</span></div>
+    <div class="card-b" style="padding:0">
+      <div class="tscroll"><table id="pipeTbl"><thead></thead><tbody></tbody></table></div>
+    </div>
+    <div class="card-b" style="border-top:1px solid var(--line)">
+      <div class="pgbar" id="pipePager"></div>
     </div>
   </div>
 </div>
@@ -617,6 +664,176 @@ async function exportCsv(){
   }
 }
 
+
+/* ---------- pipeline: in auction now, and waiting to be auctioned ----------
+   Its own endpoint, scoped to the slabpacks seller account. "In auction" is
+   auction.STATUS='active'; "waiting" is items sitting in_marketplace with no
+   active auction. An item leaves in_marketplace when its lot goes live, so the
+   two sets cannot overlap. COLLECTION is the account's on-screen section. */
+const PAPI = LOCAL ? null : "/api/pipeline";
+const P = {view:"active", page:1, sort:"", dir:"desc", meta:null, facets:{}};
+
+function pFilters(){
+  const q=new URLSearchParams();
+  q.set("view",P.view);
+  const put=(k,v)=>{ v=(v||"").trim(); if(v) q.set(k,v); };
+  put("PLAYER_NAME",$("#pPlayer").value);
+  put("SET_NAME",$("#pSet").value);
+  const multi=(el,col)=>{const v=[...el.selectedOptions].map(o=>o.value).filter(Boolean);if(v.length)q.set(col,v.join(","));};
+  multi($("#pColl"),"COLLECTION"); multi($("#pSport"),"SPORT");
+  multi($("#pTag"),"TAG"); multi($("#pGrade"),"GRADE");
+  return q;
+}
+
+const PCOLS = {
+  active:[
+    {k:"FRONT_SLAB_PICTURE_URL",t:"",kind:"img",nosort:true},
+    {k:"PLAYER_NAME",t:"PLAYER",kind:"wrap"},
+    {k:"SET_NAME",t:"SET",kind:"wrap"},
+    {k:"COLLECTION",t:"SECTION",kind:"sec"},
+    {k:"SPORT",t:"SPORT"},
+    {k:"GRADE",t:"GRADE"},
+    {k:"TAG",t:"TAG"},
+    {k:"END_AT",t:"CLOSES",kind:"date"},
+    {k:"HOURS_LEFT",t:"HRS LEFT",kind:"hrs"},
+    {k:"CURRENT_BID",t:"CURRENT BID",kind:"usd"},
+    {k:"TOTAL_BIDS",t:"BIDS",kind:"int"},
+    {k:"START_PRICE",t:"START",kind:"usd"},
+    {k:"RESERVE",t:"RESERVE",kind:"usd"},
+    {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
+    {k:"AUCTION_URL",t:"",kind:"link",nosort:true}
+  ],
+  waiting:[
+    {k:"FRONT_SLAB_PICTURE_URL",t:"",kind:"img",nosort:true},
+    {k:"PLAYER_NAME",t:"PLAYER",kind:"wrap"},
+    {k:"SET_NAME",t:"SET",kind:"wrap"},
+    {k:"COLLECTION",t:"SECTION",kind:"sec"},
+    {k:"SPORT",t:"SPORT"},
+    {k:"GRADE",t:"GRADE"},
+    {k:"TAG",t:"TAG"},
+    {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
+    {k:"PAST_AUCTIONS",t:"PRIOR RUNS",kind:"int"},
+    {k:"ITEM_STATUS",t:"ITEM STATUS"},
+    {k:"CARD_URL",t:"",kind:"link",nosort:true}
+  ]
+};
+
+function pCell(row,c){
+  const v=row[c.k];
+  if(c.kind==="sec"){
+    const name=String(v||"");
+    const cls=/shoebox/i.test(name)?"shoebox":/auction/i.test(name)?"auctions":"";
+    return `<td><span class="sec ${cls}">${esc(name||"—")}</span></td>`;
+  }
+  if(c.kind==="hrs"){
+    if(v===null||v===undefined||v==="") return `<td class="num">—</td>`;
+    const n=Number(v);
+    return `<td class="num ${n<=24?"soon":""}">${n<0?"ended":fmt(n)+"h"}</td>`;
+  }
+  return cell(row,c);
+}
+
+async function loadPipe(){
+  if(!PAPI){
+    $("#msg").innerHTML='<div class="err">The pipeline needs its own serverless function, which a static local server can’t run — open the deployed site to use this tab.</div>';
+    return;
+  }
+  const q=pFilters();
+  q.set("limit","100"); q.set("offset",String((P.page-1)*100));
+  if(P.sort){ q.set("sort",P.sort); q.set("dir",P.dir); }
+  $("#msg").innerHTML='<div class="bar"><i></i></div>';
+  try{
+    const r=await fetch(PAPI+"?"+q.toString());
+    const b=await r.json();
+    if(!b.ok) throw new Error(b.error||"no data");
+    P.meta=b; $("#msg").innerHTML="";
+    pFacets(b); pKpis(b); pTable(b);
+  }catch(e){
+    $("#msg").innerHTML='<div class="err">Could not load the pipeline — '+esc(e.message)+'</div>';
+  }
+}
+
+/* counts for both pills, so the tab header is honest before you switch views */
+async function pCounts(){
+  if(!PAPI) return;
+  try{
+    const [a,w]=await Promise.all([
+      fetch(PAPI+"?view=active&limit=1").then(r=>r.json()),
+      fetch(PAPI+"?view=waiting&limit=1").then(r=>r.json())
+    ]);
+    if(a.ok){ $("#pillActive").textContent=fmt(a.total); }
+    if(w.ok){ $("#pillWaiting").textContent=fmt(w.total); }
+    if(a.ok&&w.ok) $("#pipeTabCount").textContent=fmt(a.total);
+  }catch(_){ /* the pills just stay at zero */ }
+}
+
+let pFacetsDone={};
+function pFacets(b){
+  if(pFacetsDone[P.view]||!b.facets) return;
+  const fill=(el,col)=>{
+    const f=b.facets[col]; if(!f||!el) return;
+    el.innerHTML=f.values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+  };
+  fill($("#pColl"),"COLLECTION"); fill($("#pSport"),"SPORT");
+  fill($("#pTag"),"TAG"); fill($("#pGrade"),"GRADE");
+  pFacetsDone[P.view]=true;
+}
+
+function pKpis(b){
+  const t=b.totals||{}, filtered=(b.matched||0)!==(b.total||0);
+  const tile=(k,v,s,cls)=>`<div class="kpi ${cls||""}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s||""}</div></div>`;
+  const out=[];
+  if(P.view==="active"){
+    out.push(tile("IN AUCTION",fmt(t.count),filtered?`of ${fmt(b.total)} live`:"lots accepting bids"));
+    out.push(tile("CLOSING < 24H",fmt(t.closing_24h),"finish today or tomorrow",t.closing_24h?"bad":""));
+    out.push(tile("CURRENT BIDS",usd(t.current_bid),`${fmt(t.bids)} bids placed`,"good"));
+    out.push(tile("NO BIDS YET",fmt(t.no_bids),"still at opening price",t.no_bids?"gold":""));
+    out.push(tile("EST VALUE",usd(t.est_value),"book value on the block"));
+    out.push(tile("RESERVE",usd(t.reserve_total),"total reserve to clear"));
+  }else{
+    out.push(tile("WAITING",fmt(t.count),filtered?`of ${fmt(b.total)} queued`:"in marketplace, not listed"));
+    out.push(tile("EST VALUE",usd(t.est_value),"book value waiting","gold"));
+    out.push(tile("AVG EST",usd(t.count?t.est_value/t.count:0),"per item"));
+    out.push(tile("RELISTS",fmt(t.relists),"ran before, back in queue"));
+  }
+  $("#pipeKpis").innerHTML=out.join("");
+  $("#pipeHead")&&($("#pipeHead").textContent=(P.view==="active"?"LIVE LOTS":"WAITING")+" · "+fmt(b.matched)+(filtered?` of ${fmt(b.total)}`:""));
+  $("#pipeNote").textContent=P.view==="active"
+    ? `Auctions accepting bids now on ${b.account}. SECTION is the collection the card sits in on the account.`
+    : `Items in the marketplace on ${b.account} with no live auction. An item leaves this list the moment its lot goes active, so nothing is double-counted.`;
+}
+
+function pTable(b){
+  const cols=PCOLS[P.view].filter(c=>!b.columns||b.columns.includes(c.k));
+  $("#pipeTbl thead").innerHTML="<tr>"+cols.map(c=>{
+    const on=P.sort===c.k;
+    return `<th ${c.nosort?"":`data-k="${c.k}"`}>${esc(c.t)}${on?`<span class="ar">${P.dir==="asc"?"▲":"▼"}</span>`:""}</th>`;
+  }).join("")+"</tr>";
+  $("#pipeTbl tbody").innerHTML=b.rows.length
+    ? b.rows.map(r=>"<tr>"+cols.map(c=>pCell(r,c)).join("")+"</tr>").join("")
+    : `<tr><td colspan="${cols.length}" style="padding:24px;text-align:center;color:var(--muted)">Nothing matches these filters.</td></tr>`;
+  $$("#pipeTbl th[data-k]").forEach(th=>th.onclick=()=>{
+    const k=th.dataset.k;
+    if(P.sort===k) P.dir=P.dir==="asc"?"desc":"asc"; else { P.sort=k; P.dir="desc"; }
+    P.page=1; loadPipe();
+  });
+  pager($("#pipePager"),P.page,b.pages||1,b.matched||0,pg=>{P.page=pg;loadPipe();});
+}
+
+$$(".pill-btn[data-pv]").forEach(btn=>btn.onclick=()=>{
+  $$(".pill-btn[data-pv]").forEach(x=>x.classList.remove("on")); btn.classList.add("on");
+  P.view=btn.dataset.pv; P.page=1; P.sort=""; loadPipe();
+});
+$("#pApply").onclick=()=>{ P.page=1; loadPipe(); };
+$("#pClear").onclick=()=>{
+  ["#pPlayer","#pSet"].forEach(x=>$(x).value="");
+  ["#pColl","#pSport","#pTag","#pGrade"].forEach(x=>$$(x+" option").forEach(o=>o.selected=false));
+  P.page=1; loadPipe();
+};
+["#pPlayer","#pSet"].forEach(x=>$(x).addEventListener("keydown",e=>{
+  if(e.key==="Enter"){ P.page=1; loadPipe(); }
+}));
+
 /* ---------- page switching ---------- */
 let currentPage="lots";
 $$(".tab[data-page]").forEach(b=>b.onclick=()=>{
@@ -624,7 +841,9 @@ $$(".tab[data-page]").forEach(b=>b.onclick=()=>{
   const pg=b.dataset.page; currentPage=pg;
   $("#page-lots").classList.toggle("hidden",pg!=="lots");
   $("#page-break").classList.toggle("hidden",pg!=="break");
+  $("#page-pipe").classList.toggle("hidden",pg!=="pipe");
   if(pg==="break") renderBreak();
+  if(pg==="pipe"){ loadPipe(); pCounts(); }
 });
 
 /* ---------- wiring ---------- */
@@ -634,7 +853,7 @@ $("#clear").onclick=()=>{
   ["#fSport","#fGrade","#fStatus","#fTag"].forEach(s=>$$(s+" option").forEach(o=>o.selected=false));
   S.page=1; S.all=null; load();
 };
-$("#reload").onclick=()=>{ S.all=null; load(); if(currentPage==="break") renderBreak(); };
+$("#reload").onclick=()=>{ S.all=null; load(); if(currentPage==="break") renderBreak(); if(currentPage==="pipe"){ loadPipe(); pCounts(); } };
 $("#csv").onclick=exportCsv;
 $("#grpBy").onchange=renderBreak;
 ["#fPlayer","#fSet","#fPo"].forEach(s=>$(s).addEventListener("keydown",e=>{
