@@ -460,7 +460,7 @@ const COLS=[
   {k:"PURCHASE_COST",t:"PURCHASE COST", kind:"usd"},
   {k:"SOLD_PRICE",   t:"SOLD PRICE",    kind:"usd"},
   {k:"SOLD_VS_EV",   t:"SOLD PRICE VS. EV", kind:"signed"},
-  {k:"MARGIN",       t:"MARGIN",        kind:"pctcell"},
+  {k:"MARGIN",       t:"MARGIN",        kind:"marginpct", nosort:true},
   {k:"TOTAL_BIDS",   t:"BIDS",          kind:"int"},
   {k:"AUCTION_STATUS",t:"STATUS"},
   {k:"PO_NUMBER",    t:"PO"},
@@ -546,6 +546,18 @@ function cell(row,c){
       if(v===null||v===undefined||v==="") return `<td class="num">—</td>`;
       const n=Number(v);
       return `<td class="num ${n>0?"pos":n<0?"neg":""}">${usd(n)}</td>`;
+    }
+    /* (sold - cost) / cost. The endpoint's MARGIN column is sold minus cost
+       in DOLLARS, so rendering it as a percentage was simply wrong — a lot
+       that cost $2.31 and sold for $7 read "4.7%" instead of 203%. Computed
+       here from the two figures already on the row. Undefined when the cost
+       is $0, which is true of 23 lots, so those show a dash rather than an
+       invented number. */
+    case "marginpct":{
+      const c=numv(row.PURCHASE_COST), sp=numv(row.SOLD_PRICE);
+      if(!c) return `<td class="num" title="purchase cost is $0 — a percentage margin is undefined">—</td>`;
+      const n=((sp-c)/c)*100;
+      return `<td class="num ${n>0?"pos":n<0?"neg":""}">${pct(n)}</td>`;
     }
     case "pctcell":{
       if(v===null||v===undefined||v==="") return `<td class="num">—</td>`;
