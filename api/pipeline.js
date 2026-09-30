@@ -25,6 +25,10 @@
  *   - every table needs the _SNOWFLAKE_DELETED guard, in the JOIN when outer
  *   - INSERT and COLLECTION are reserved words in Snowflake, so both are
  *     quoted; unquoted they fail to compile at the following AS
+ *   - admin.arenaclub.com has NO /auctions route (its nav is Vaulting, Packs,
+ *     Tasks, Orders, Cards, Users), so an auction-id link 404s. The working
+ *     deep link is /cards/<item_id>/estimate-value, verified against a live
+ *     lot. Card 39238 still emits the dead /auctions/<id> form.
  *   - the on-screen sections are public.collections (NAME, IS_SHOEBOX) joined
  *     via items.COLLECTION_ID; verified against the account UI exactly
  *     (Auctions 3,079 / Shoebox 701; their live lots 55 + 93 = 148)
@@ -43,7 +47,6 @@ const SQL = {
   active: `
 SELECT
     a.ID                                                            AS AUCTION_ID,
-    'https://admin.arenaclub.com/auctions/' || a.ID                 AS AUCTION_URL,
     'https://admin.arenaclub.com/cards/' || a.ITEM_ID || '/estimate-value' AS CARD_URL,
     c.FRONT_SLAB_PICTURE_URL,
     c.PLAYER_NAME,
