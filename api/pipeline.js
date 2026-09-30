@@ -37,6 +37,10 @@
  *   - the on-screen sections are public.collections (NAME, IS_SHOEBOX) joined
  *     via items.COLLECTION_ID; verified against the account UI exactly
  *     (Auctions 3,079 / Shoebox 701; their live lots 55 + 93 = 148)
+ *   - both views are scoped to the card category. The account also holds
+ *     watches, coins and wines; those have no row in ADMIN.CARDS, so they
+ *     rendered as a line of dashes. It also matches COMPLETED AUCTIONS,
+ *     which is cards-only by construction.
  *   - an item leaves 'in_marketplace' when its auction goes active, so the two
  *     views cannot double-count (measured: 0 overlap)
  */
@@ -96,6 +100,7 @@ LEFT JOIN APP_PROD.ADMIN.CARDS c
 WHERE NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
   AND u.EMAIL = '{{ACCOUNT}}'
   AND a.STATUS = 'active'
+  AND a.ITEM_CATEGORY = 'card'
 ORDER BY a.END_AT`,
 
   waiting: `
@@ -139,6 +144,7 @@ LEFT JOIN APP_PROD.ADMIN.CARDS c
 WHERE NOT COALESCE(i._SNOWFLAKE_DELETED, FALSE)
   AND u.EMAIL = '{{ACCOUNT}}'
   AND i.STATUS = 'in_marketplace'
+  AND i.CATEGORY = 'card'
   AND NOT EXISTS (
         SELECT 1
           FROM APP_PROD.PUBLIC.AUCTION a
