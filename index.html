@@ -437,7 +437,10 @@ const fmt=n=>Number(n||0).toLocaleString();
 const usd=n=>(n<0?"-":"")+"$"+Math.abs(Number(n||0)).toLocaleString(undefined,{maximumFractionDigits:0});
 const pct=n=>n===null||n===undefined||isNaN(n)?"—":(n>0?"+":"")+Number(n).toFixed(1)+"%";
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const day=v=>{const t=Date.parse(v);return isNaN(t)?"—":new Date(t).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"});};
+/* 9/30/26. Pinned to en-US so the order stays month-first rather than
+   following the viewer's locale, which would render 30/09/26 in much of
+   the world. */
+const day=v=>{const t=Date.parse(v);return isNaN(t)?"—":new Date(t).toLocaleDateString("en-US",{month:"numeric",day:"numeric",year:"2-digit"});};
 
 const S={page:1,sort:"SOLD_AT",dir:"desc",rows:[],meta:null,all:null,allAt:0};
 
