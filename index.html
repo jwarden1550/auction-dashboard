@@ -252,10 +252,24 @@ tr:hover .polink{border-bottom-color:var(--green)}
 .kpi.good .v{color:var(--green)} .kpi.bad .v{color:var(--red)} .kpi.gold .v{color:var(--gold)}
 
 .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(152px,1fr));gap:9px 8px;align-items:end}
-.fgrid label{display:block;font-size:10px;letter-spacing:1.2px;color:var(--muted);opacity:.72;margin-bottom:4px}
-.fgrid input,.fgrid select{width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);
-  font-family:var(--mono);font-size:12.5px;padding:7px 9px}
-.fgrid input:focus,.fgrid select:focus{outline:none;border-color:var(--green-dim)}
+/* Scoped to DIRECT children. Unscoped, these reached inside the .mselpanel —
+   which is a DOM descendant even though it renders fixed — and beat the
+   panel's own rules on specificity: "label{display:block}" stacked each
+   checkbox above its text, and "input{width:100%}" blew the checkboxes up
+   into full-width boxes. */
+.fgrid>div>label{display:block;font-size:10px;letter-spacing:1.2px;color:var(--muted);opacity:.72;margin-bottom:4px}
+.fgrid>div>input,.fgrid>div>select,.fgrid>div>.pair>input{width:100%;background:var(--panel-2);
+  border:1px solid var(--line);color:var(--text);font-family:var(--mono);font-size:12.5px;padding:7px 9px}
+.fgrid>div>input:focus,.fgrid>div>select:focus,.fgrid>div>.pair>input:focus{outline:none;border-color:var(--green-dim)}
+/* the panel's search box styled explicitly, since it no longer inherits the above */
+.mselpanel .mselsearch{width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+  font-family:var(--mono);font-size:12.5px;padding:7px 9px;border-radius:5px}
+.mselpanel .mselsearch:focus{outline:none;border-color:var(--green-dim)}
+/* and the option rows, hardened against anything reaching in again */
+.mselpanel .mselopt{display:flex;flex-direction:row;align-items:center;gap:9px;margin:0;font-size:12.5px;
+  letter-spacing:0;color:var(--text);opacity:1}
+.mselpanel .mselopt input[type="checkbox"]{width:14px;height:14px;flex:0 0 14px;padding:0;margin:0;
+  background:none;border:0;accent-color:var(--green)}
 /* the multi-selects are replaced by one-line .msel buttons, so they only
    remain in the DOM as the value store */
 .fgrid select[multiple]{display:none}
