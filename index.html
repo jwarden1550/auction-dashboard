@@ -447,10 +447,14 @@ const BUILD = "2026-09-29a";
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const fmt=n=>Number(n||0).toLocaleString();
 const usd=n=>(n<0?"-":"")+"$"+Math.abs(Number(n||0)).toLocaleString(undefined,{maximumFractionDigits:0});
-/* Table money: up to 2dp, so $2.31 reads as $2.31 and $7 stays $7. Rounding
-   these to whole dollars made the derived columns look wrong — a $2.31 cost
-   and $7 sale shown as "$2" and "$7" implies a 71% margin, not the true 67%. */
-const usdc=n=>(n<0?"-":"")+"$"+Math.abs(Number(n||0)).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:2});
+/* Table money rounds to whole dollars, matching buying-inventory, which
+   renders "$"+fmt(Math.round(v)). The underlying values are identical in both
+   apps — only the display differs. Because rounding hides cents (a $2.31 cost
+   next to a $7 sale reads as a 71% margin when the true figure is 67%), any
+   cell carrying cents gets a tooltip with the exact amount. MARGIN % and
+   PROFIT $ are always computed from the unrounded values. */
+const usdc=n=>(n<0?"-":"")+"$"+Math.round(Math.abs(Number(n||0))).toLocaleString("en-US");
+const exactTip=n=>{const v=Number(n||0);return v%1?` title="exactly ${v<0?"-":""}$${Math.abs(v).toFixed(2)}"`:"";};
 const pct=n=>n===null||n===undefined||isNaN(n)?"—":(n>0?"+":"")+Number(n).toFixed(1)+"%";
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 /* 9/30/26. Pinned to en-US so the order stays month-first rather than
@@ -581,12 +585,14 @@ function cell(row,c){
     case "link": return v?`<td><a class="alink" href="${esc(v)}" target="_blank" rel="noopener">OPEN ↗</a></td>`:`<td></td>`;
     case "wrap": return `<td class="wrap">${esc(v||"—")}</td>`;
     case "date": return `<td class="num">${day(v)}</td>`;
-    case "usd":  return `<td class="num">${v===null||v===undefined||v===""?"—":usdc(v)}</td>`;
+    case "usd":  return v===null||v===undefined||v===""
+      ? `<td class="num">—</td>`
+      : `<td class="num"${exactTip(v)}>${usdc(v)}</td>`;
     case "int":  return `<td class="num">${v===null||v===undefined||v===""?"—":fmt(v)}</td>`;
     case "signed":{
       if(v===null||v===undefined||v==="") return `<td class="num">—</td>`;
       const n=Number(v);
-      return `<td class="num ${n>0?"pos":n<0?"neg":""}">${usdc(n)}</td>`;
+      return `<td class="num ${n>0?"pos":n<0?"neg":""}"${exactTip(n)}>${usdc(n)}</td>`;
     }
     /* (sold - cost) / sold — margin on revenue. The endpoint's MARGIN column
        is sold minus cost in DOLLARS, so rendering it as a percentage was
