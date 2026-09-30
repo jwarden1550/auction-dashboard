@@ -250,12 +250,19 @@ tr:hover .polink{border-bottom-color:var(--green)}
 .kpi .s{font-size:11.5px;color:var(--muted);opacity:.72;margin-top:3px}
 .kpi.good .v{color:var(--green)} .kpi.bad .v{color:var(--red)} .kpi.gold .v{color:var(--gold)}
 
-.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:12px 10px;align-items:start}
-.fgrid label{display:block;font-size:10.5px;letter-spacing:1.4px;color:var(--muted);opacity:.72;margin-bottom:5px}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(152px,1fr));gap:9px 8px;align-items:end}
+.fgrid label{display:block;font-size:10px;letter-spacing:1.2px;color:var(--muted);opacity:.72;margin-bottom:4px}
 .fgrid input,.fgrid select{width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);
   font-family:var(--mono);font-size:12.5px;padding:7px 9px}
 .fgrid input:focus,.fgrid select:focus{outline:none;border-color:var(--green-dim)}
-.fgrid select[multiple]{min-height:82px}
+/* the multi-selects are replaced by one-line .msel buttons, so they only
+   remain in the DOM as the value store */
+.fgrid select[multiple]{display:none}
+.card-b.filters{padding:12px 14px}
+.card-h .tog{background:none;border:1px solid var(--line);color:var(--muted);font-family:var(--mono);
+  font-size:10px;letter-spacing:1.2px;padding:3px 9px;border-radius:5px}
+.card-h .tog:hover{color:var(--text);border-color:var(--muted)}
+.card-h .active{color:var(--green);letter-spacing:1.2px;font-size:11px}
 .pair{display:flex;gap:6px}
 
 .tscroll{overflow:auto;max-height:70vh;border:1px solid var(--line);background:var(--panel)}
@@ -309,8 +316,11 @@ tr:hover .polink{border-bottom-color:var(--green)}
   <div class="kpis" id="kpis"></div>
 
   <div class="card" style="margin-top:16px">
-    <div class="card-h">FILTERS</div>
-    <div class="card-b">
+    <div class="card-h">
+      <span>FILTERS <span class="active" id="fActive"></span></span>
+      <button class="tog" id="fTog">HIDE</button>
+    </div>
+    <div class="card-b filters" id="fBody">
       <div class="fgrid">
         <div><label>PLAYER</label><input id="fPlayer" placeholder="Kobe Bryant, Mbappe" spellcheck="false"></div>
         <div><label>SET</label><input id="fSet" placeholder="Topps Chrome" spellcheck="false"></div>
@@ -327,7 +337,7 @@ tr:hover .polink{border-bottom-color:var(--green)}
           <button class="btn ghost" id="clear">CLEAR</button>
         </div>
       </div>
-      <p class="note" style="margin-bottom:0">Text boxes match on any part of the value, and take a comma-separated list. Multi-selects are any-of &mdash; hold &#8984;/Ctrl to pick several. Everything filters server-side against the full book, not just the page on screen.</p>
+      <p class="note" style="margin:8px 0 0;font-size:11.5px">Text matches any part of a value; commas for a list. Dropdowns are any-of. Filters run over the whole book, not the page.</p>
     </div>
   </div>
 
@@ -355,8 +365,11 @@ tr:hover .polink{border-bottom-color:var(--green)}
   </div>
 
   <div class="card" style="margin-top:14px">
-    <div class="card-h">FILTERS</div>
-    <div class="card-b">
+    <div class="card-h">
+      <span>FILTERS <span class="active" id="pActive"></span></span>
+      <button class="tog" id="pTog">HIDE</button>
+    </div>
+    <div class="card-b filters" id="pBody">
       <div class="fgrid">
         <div><label>PLAYER</label><input id="pPlayer" placeholder="Kobe Bryant" spellcheck="false"></div>
         <div><label>SET</label><input id="pSet" placeholder="Topps Chrome" spellcheck="false"></div>
@@ -369,7 +382,7 @@ tr:hover .polink{border-bottom-color:var(--green)}
           <button class="btn ghost" id="pClear">CLEAR</button>
         </div>
       </div>
-      <p class="note" style="margin-bottom:0" id="pipeNote"></p>
+      <p class="note" style="margin:8px 0 0;font-size:11.5px" id="pipeNote"></p>
     </div>
   </div>
 
@@ -490,6 +503,8 @@ function fillFacets(b){
   };
   fill($("#fSport"),"SPORT"); fill($("#fGrade"),"GRADE");
   fill($("#fStatus"),"AUCTION_STATUS"); fill($("#fTag"),"TAG");
+  [["#fSport","sport"],["#fGrade","grade"],["#fStatus","status"],["#fTag","tag"]]
+    .forEach(([id,lab])=>{ msel(id,lab); $(id).dispatchEvent(new Event("optionsfilled")); });
   facetsDone=true;
 }
 
@@ -665,6 +680,95 @@ async function exportCsv(){
 }
 
 
+
+/* ---------- compact multi-select ----------
+   Each filter was an 82px <select multiple> needing cmd-click, and six of them
+   made the panel taller than the table. The <select> stays in the DOM as the
+   value store — so everything that reads selectedOptions is untouched — and
+   this draws a one-line button over it that opens a searchable panel. Styles
+   (.msel*) came across with the design system from buying-inventory. */
+function msel(selectId, label){
+  const sel = $(selectId);
+  if(!sel || sel.dataset.msel) return;
+  sel.dataset.msel = "1";
+
+  const wrap = document.createElement("div"); wrap.className = "msel";
+  const btn = document.createElement("button"); btn.type = "button"; btn.className = "mselbtn";
+  const panel = document.createElement("div"); panel.className = "mselpanel";
+  panel.innerHTML = `<input class="mselsearch" placeholder="search ${esc(label.toLowerCase())}" spellcheck="false">
+    <div class="mselopts"></div>
+    <div class="mselfoot"><button class="btn ghost" data-act="none">CLEAR</button>
+      <button class="btn" data-act="done">DONE</button></div>`;
+  sel.parentNode.insertBefore(wrap, sel);
+  wrap.appendChild(sel); wrap.appendChild(btn); wrap.appendChild(panel);
+
+  const search = panel.querySelector(".mselsearch");
+  const list = panel.querySelector(".mselopts");
+  const picked = () => [...sel.selectedOptions].map(o => o.value);
+
+  function label_(){
+    const n = picked().length;
+    btn.textContent = n === 0 ? "any" : n === 1 ? picked()[0] : n + " selected";
+    btn.classList.toggle("has", n > 0);
+  }
+  function draw(){
+    const q = search.value.trim().toLowerCase();
+    const opts = [...sel.options].filter(o => !q || o.value.toLowerCase().includes(q));
+    if(!opts.length){ list.innerHTML = `<div class="mselempty">nothing matches “${esc(search.value)}”</div>`; return; }
+    // chosen values float to the top so they never hide behind a long list
+    opts.sort((a,b) => (b.selected - a.selected));
+    list.innerHTML = opts.slice(0,400).map(o =>
+      `<label class="mselopt"><input type="checkbox" ${o.selected?"checked":""} value="${esc(o.value)}"><span>${esc(o.value)}</span></label>`
+    ).join("");
+    list.querySelectorAll("input").forEach(cb => cb.onchange = () => {
+      const o = [...sel.options].find(x => x.value === cb.value);
+      if(o) o.selected = cb.checked;
+      label_(); sel.dispatchEvent(new Event("change",{bubbles:true}));
+    });
+  }
+  function place(){
+    const r = btn.getBoundingClientRect();
+    panel.style.left = Math.min(r.left, window.innerWidth - 316) + "px";
+    panel.style.top = Math.min(r.bottom + 6, window.innerHeight - 340) + "px";
+  }
+  function open(){
+    $$(".mselpanel.open").forEach(x => x.classList.remove("open"));
+    place(); panel.classList.add("open"); draw(); search.focus();
+  }
+  btn.onclick = e => { e.stopPropagation(); panel.classList.contains("open") ? panel.classList.remove("open") : open(); };
+  search.oninput = draw;
+  search.onkeydown = e => { if(e.key === "Escape") panel.classList.remove("open"); };
+  panel.onclick = e => {
+    e.stopPropagation();
+    const act = e.target.dataset && e.target.dataset.act;
+    if(act === "none"){ [...sel.options].forEach(o => o.selected = false); label_(); draw(); sel.dispatchEvent(new Event("change",{bubbles:true})); }
+    if(act === "done") panel.classList.remove("open");
+  };
+  // the option list is filled after the first fetch, so refresh the label then
+  sel.addEventListener("optionsfilled", label_);
+  label_();
+}
+document.addEventListener("click", () => $$(".mselpanel.open").forEach(x => x.classList.remove("open")));
+window.addEventListener("resize", () => $$(".mselpanel.open").forEach(x => x.classList.remove("open")));
+
+/* collapse a filter panel, and say what is active while it is hidden */
+function filterToggle(togId, bodyId, activeId, read){
+  const tog = $(togId), body = $(bodyId), out = $(activeId);
+  if(!tog) return;
+  const sync = () => {
+    const parts = read();
+    out.textContent = parts.length ? "· " + parts.join(" · ") : "";
+  };
+  tog.onclick = () => {
+    const hidden = body.classList.toggle("hidden");
+    tog.textContent = hidden ? "SHOW" : "HIDE";
+    sync();
+  };
+  document.addEventListener("change", sync);
+  document.addEventListener("input", sync);
+  sync();
+}
+
 /* ---------- pipeline: in auction now, and waiting to be auctioned ----------
    Its own endpoint, scoped to the slabpacks seller account. "In auction" is
    auction.STATUS='active'; "waiting" is items sitting in_marketplace with no
@@ -784,6 +888,8 @@ function pFacets(b){
   };
   fill($("#pColl"),"COLLECTION"); fill($("#pSport"),"SPORT");
   fill($("#pTag"),"TAG"); fill($("#pGrade"),"GRADE");
+  [["#pColl","section"],["#pSport","sport"],["#pTag","tag"],["#pGrade","grade"]]
+    .forEach(([id,lab])=>{ msel(id,lab); $(id).dispatchEvent(new Event("optionsfilled")); });
   pFacetsDone[P.view]=true;
 }
 
@@ -867,6 +973,27 @@ $("#grpBy").onchange=renderBreak;
 ["#fPlayer","#fSet","#fPo"].forEach(s=>$(s).addEventListener("keydown",e=>{
   if(e.key==="Enter"){ S.page=1; S.all=null; load(); }
 }));
+
+filterToggle("#fTog","#fBody","#fActive",()=>{
+  const out=[];
+  const t=(id,lab)=>{ const v=($(id).value||"").trim(); if(v) out.push(lab+": "+v); };
+  t("#fPlayer","player"); t("#fSet","set"); t("#fPo","po");
+  [["#fSport","sport"],["#fGrade","grade"],["#fStatus","status"],["#fTag","tag"]].forEach(([id,lab])=>{
+    const n=$(id)?[...$(id).selectedOptions].length:0; if(n) out.push(lab+": "+n);
+  });
+  if($("#fFrom").value||$("#fTo").value) out.push("dates");
+  if($("#fMinSold").value||$("#fMaxSold").value) out.push("price");
+  return out;
+});
+filterToggle("#pTog","#pBody","#pActive",()=>{
+  const out=[];
+  const t=(id,lab)=>{ const v=($(id).value||"").trim(); if(v) out.push(lab+": "+v); };
+  t("#pPlayer","player"); t("#pSet","set");
+  [["#pColl","section"],["#pSport","sport"],["#pTag","tag"],["#pGrade","grade"]].forEach(([id,lab])=>{
+    const n=$(id)?[...$(id).selectedOptions].length:0; if(n) out.push(lab+": "+n);
+  });
+  return out;
+});
 
 load();
 </script>
