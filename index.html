@@ -701,7 +701,8 @@ const PCOLS = {
     {k:"START_PRICE",t:"START",kind:"usd"},
     {k:"RESERVE",t:"RESERVE",kind:"usd"},
     {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
-    {k:"CARD_URL",t:"",kind:"link",nosort:true}
+    {k:"PUBLIC_URL",t:"",kind:"view",nosort:true},
+    {k:"ADMIN_URL",t:"",kind:"admin",nosort:true}
   ],
   waiting:[
     {k:"FRONT_SLAB_PICTURE_URL",t:"",kind:"img",nosort:true},
@@ -714,7 +715,8 @@ const PCOLS = {
     {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
     {k:"PAST_AUCTIONS",t:"PRIOR RUNS",kind:"int"},
     {k:"ITEM_STATUS",t:"ITEM STATUS"},
-    {k:"CARD_URL",t:"",kind:"link",nosort:true}
+    {k:"PUBLIC_URL",t:"",kind:"view",nosort:true},
+    {k:"ADMIN_URL",t:"",kind:"admin",nosort:true}
   ]
 };
 
@@ -724,6 +726,12 @@ function pCell(row,c){
     const name=String(v||"");
     const cls=/shoebox/i.test(name)?"shoebox":/auction/i.test(name)?"auctions":"";
     return `<td><span class="sec ${cls}">${esc(name||"—")}</span></td>`;
+  }
+  if(c.kind==="view"){
+    return v?`<td><a class="alink" href="${esc(v)}" target="_blank" rel="noopener">VIEW ↗</a></td>`:`<td></td>`;
+  }
+  if(c.kind==="admin"){
+    return v?`<td><a class="alink" style="opacity:.62" href="${esc(v)}" target="_blank" rel="noopener">ADMIN ↗</a></td>`:`<td></td>`;
   }
   if(c.kind==="hrs"){
     if(v===null||v===undefined||v==="") return `<td class="num">—</td>`;

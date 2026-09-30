@@ -25,6 +25,11 @@
  *   - every table needs the _SNOWFLAKE_DELETED guard, in the JOIN when outer
  *   - INSERT and COLLECTION are reserved words in Snowflake, so both are
  *     quoted; unquoted they fail to compile at the following AS
+ *   - the consumer card page is /cards/<sport>-<set>-<player>-8AC<number
+ *     padded to 9>, built from cards.NUMBER (identical to items.NUMBER).
+ *     There is no slug column, so it is constructed; verified against a live
+ *     lot, punctuation included (J.J. McCarthy -> j-j-mccarthy). That page
+ *     also shows the auction itself, which admin never had a route for.
  *   - admin.arenaclub.com has NO /auctions route (its nav is Vaulting, Packs,
  *     Tasks, Orders, Cards, Users), so an auction-id link 404s. The working
  *     deep link is /cards/<item_id>/estimate-value, verified against a live
@@ -47,7 +52,14 @@ const SQL = {
   active: `
 SELECT
     a.ID                                                            AS AUCTION_ID,
-    'https://admin.arenaclub.com/cards/' || a.ITEM_ID || '/estimate-value' AS CARD_URL,
+    CASE WHEN c.NUMBER IS NOT NULL THEN
+      'https://arenaclub.com/cards/'
+      || LOWER(TRIM(REGEXP_REPLACE(
+             COALESCE(c.SPORT,'') || ' ' || COALESCE(c.SET_NAME,'') || ' ' || COALESCE(c.PLAYER_NAME,''),
+             '[^A-Za-z0-9]+', '-'), '-'))
+      || '-8AC' || LPAD(c.NUMBER::STRING, 9, '0')
+    END                                                             AS PUBLIC_URL,
+    'https://admin.arenaclub.com/cards/' || a.ITEM_ID || '/estimate-value' AS ADMIN_URL,
     c.FRONT_SLAB_PICTURE_URL,
     c.PLAYER_NAME,
     c.SET_NAME,
@@ -89,7 +101,14 @@ ORDER BY a.END_AT`,
   waiting: `
 SELECT
     i.ID                                                            AS ITEM_ID,
-    'https://admin.arenaclub.com/cards/' || i.ID || '/estimate-value' AS CARD_URL,
+    CASE WHEN c.NUMBER IS NOT NULL THEN
+      'https://arenaclub.com/cards/'
+      || LOWER(TRIM(REGEXP_REPLACE(
+             COALESCE(c.SPORT,'') || ' ' || COALESCE(c.SET_NAME,'') || ' ' || COALESCE(c.PLAYER_NAME,''),
+             '[^A-Za-z0-9]+', '-'), '-'))
+      || '-8AC' || LPAD(c.NUMBER::STRING, 9, '0')
+    END                                                             AS PUBLIC_URL,
+    'https://admin.arenaclub.com/cards/' || i.ID || '/estimate-value' AS ADMIN_URL,
     c.FRONT_SLAB_PICTURE_URL,
     c.PLAYER_NAME,
     c.SET_NAME,
