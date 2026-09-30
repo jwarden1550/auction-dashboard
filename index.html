@@ -489,8 +489,8 @@ const COLS=[
   {k:"TOTAL_BIDS",   t:"BIDS",          kind:"int"},
   {k:"AUCTION_STATUS",t:"STATUS"},
   {k:"PO_NUMBER",    t:"PO"},
-  {k:"PUBLIC_URL",   t:"",              kind:"viewcalc", nosort:true, always:true},
-  {k:"CARD_URL",     t:"",              kind:"admin", nosort:true}
+  {k:"PUBLIC_URL",   t:"VIEW",          kind:"viewcalc", nosort:true, always:true},
+  {k:"CARD_URL",     t:"ADMIN",         kind:"admin", nosort:true}
 ];
 
 /* ---------- query building ---------- */
@@ -864,8 +864,8 @@ const PCOLS = {
     {k:"START_PRICE",t:"START",kind:"usd"},
     {k:"RESERVE",t:"RESERVE",kind:"usd"},
     {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
-    {k:"PUBLIC_URL",t:"",kind:"view",nosort:true},
-    {k:"ADMIN_URL",t:"",kind:"admin",nosort:true}
+    {k:"PUBLIC_URL",t:"VIEW",kind:"view",nosort:true},
+    {k:"ADMIN_URL",t:"ADMIN",kind:"admin",nosort:true}
   ],
   waiting:[
     {k:"FRONT_SLAB_PICTURE_URL",t:"",kind:"img",nosort:true},
@@ -878,8 +878,8 @@ const PCOLS = {
     {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
     {k:"PAST_AUCTIONS",t:"PRIOR RUNS",kind:"int"},
     {k:"ITEM_STATUS",t:"ITEM STATUS"},
-    {k:"PUBLIC_URL",t:"",kind:"view",nosort:true},
-    {k:"ADMIN_URL",t:"",kind:"admin",nosort:true}
+    {k:"PUBLIC_URL",t:"VIEW",kind:"view",nosort:true},
+    {k:"ADMIN_URL",t:"ADMIN",kind:"admin",nosort:true}
   ]
 };
 
