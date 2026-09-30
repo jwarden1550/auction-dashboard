@@ -300,7 +300,7 @@ tr:hover .polink{border-bottom-color:var(--green)}
 
 <div class="tabs">
   <div>
-    <button class="tab on" data-page="lots">LOTS</button>
+    <button class="tab on" data-page="lots">COMPLETED AUCTIONS</button>
     <button class="tab" data-page="pipe">PIPELINE <span class="count" id="pipeTabCount"></span></button>
     <button class="tab" data-page="break">BREAKDOWN</button>
   </div>
@@ -310,7 +310,7 @@ tr:hover .polink{border-bottom-color:var(--green)}
   </div>
 </div>
 
-<!-- ============ LOTS ============ -->
+<!-- ============ COMPLETED AUCTIONS ============ -->
 <div id="page-lots">
 
   <div class="kpis" id="kpis"></div>
@@ -342,7 +342,7 @@ tr:hover .polink{border-bottom-color:var(--green)}
   </div>
 
   <div class="card" style="margin-top:14px">
-    <div class="card-h"><span id="lotHead">LOTS</span></div>
+    <div class="card-h"><span id="lotHead">COMPLETED AUCTIONS</span></div>
     <div class="card-b" style="padding:0">
       <div class="tscroll">
         <table id="lotTbl"><thead></thead><tbody></tbody></table>
@@ -417,7 +417,7 @@ tr:hover .polink{border-bottom-color:var(--green)}
       </div>
     </div>
   </div>
-  <p class="note" id="brkNote">Reads the whole book once, then groups it here. The filters on the LOTS tab apply.</p>
+  <p class="note" id="brkNote">Reads the whole book once, then groups it here. The filters on the COMPLETED AUCTIONS tab apply.</p>
 </div>
 
 <div id="msg"></div>
@@ -529,7 +529,7 @@ function renderKpis(b){
   $("#mCard").textContent="build "+BUILD;
   $("#mAsOf").textContent="as of "+new Date().toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});
   if(b.generated) $("#mGen").textContent="data pulled "+new Date(b.generated).toLocaleString();
-  $("#lotHead").textContent=`LOTS · ${fmt(b.matched)}`+(filtered?` of ${fmt(b.total)}`:"");
+  $("#lotHead").textContent=`COMPLETED AUCTIONS · ${fmt(b.matched)}`+(filtered?` of ${fmt(b.total)}`:"");
 }
 
 /* ---------- table ---------- */
@@ -657,7 +657,7 @@ async function renderBreak(){
       <td class="num ${tp>=0?"pos":"neg"}"><b>${usd(tp)}</b></td>
       <td class="num ${tm>=0?"pos":"neg"}"><b>${pct(tm)}</b></td>
       <td class="num">—</td><td class="num"><b>${fmt(T.bids)}</b></td></tr>`;
-    $("#brkNote").textContent=`${fmt(rows.length)} lots grouped into ${fmt(list.length)} ${col.replace(/_/g," ").toLowerCase()} values. Filters from the LOTS tab apply.`;
+    $("#brkNote").textContent=`${fmt(rows.length)} lots grouped into ${fmt(list.length)} ${col.replace(/_/g," ").toLowerCase()} values. Filters from the COMPLETED AUCTIONS tab apply.`;
   }catch(e){
     $("#msg").innerHTML='<div class="err">Could not build the breakdown — '+esc(e.message)+'</div>';
   }
