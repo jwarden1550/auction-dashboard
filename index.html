@@ -349,7 +349,6 @@ tr:hover .polink{border-bottom-color:var(--green)}
           <button class="btn ghost" id="clear">CLEAR</button>
         </div>
       </div>
-      <p class="note" style="margin:8px 0 0;font-size:11.5px">Text matches any part of a value; commas for a list. Dropdowns are any-of. Filters run over the whole book, not the page.</p>
     </div>
   </div>
 
@@ -394,7 +393,6 @@ tr:hover .polink{border-bottom-color:var(--green)}
           <button class="btn ghost" id="pClear">CLEAR</button>
         </div>
       </div>
-      <p class="note" style="margin:8px 0 0;font-size:11.5px" id="pipeNote"></p>
     </div>
   </div>
 
@@ -974,9 +972,6 @@ function pKpis(b){
   $("#pipeKpis").innerHTML=out.join("");
   $("#pipeHead")&&($("#pipeHead").textContent=(P.view==="active"?"LIVE LOTS":"WAITING")+" · "+fmt(b.matched)+(filtered?` of ${fmt(b.total)}`:""));
   $("#mGen").textContent=stamp(b.generated);
-  $("#pipeNote").textContent=P.view==="active"
-    ? `Auctions accepting bids now on ${b.account}. SECTION is the collection the card sits in on the account.`
-    : `Items in the marketplace on ${b.account} with no live auction. An item leaves this list the moment its lot goes active, so nothing is double-counted.`;
 }
 
 function pTable(b){
