@@ -147,10 +147,10 @@ module.exports = async (req, res) => {
   }
 
   try {
+    const q = req.query;
     const fresh = q.fresh === '1' || q.fresh === 'true';
     if (fresh) noStore();
     const c = await load(fresh);
-    const q = req.query;
     const cols = c.cols;
     const isDate = dateCols(c.rows, cols);
     const isNum = numericCols(c.rows, cols);

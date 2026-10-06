@@ -970,15 +970,25 @@ async function loadPipe(){
 /* counts for both pills, so the tab header is honest before you switch views */
 async function pCounts(){
   if(!PAPI) return;
+  const set=(id,v)=>{ const el=$(id); if(el) el.textContent=v; };
+  const fill=(view,val)=>{
+    set(view==="active"?"#pillActive":"#pillWaiting", val);
+    if(view==="active") set("#pipeTabCount", val);
+  };
+  /* The open view's count is already loaded — use it rather than asking again,
+     so this only fetches the other one. Three cold requests at once was both
+     wasteful and the likeliest way to get a failure. */
+  if(P.meta&&P.meta.ok) fill(P.view, fmt(P.meta.total));
+  const other = P.view==="active" ? "waiting" : "active";
   try{
-    const [a,w]=await Promise.all([
-      fetch(PAPI+"?view=active&limit=1").then(r=>r.json()),
-      fetch(PAPI+"?view=waiting&limit=1").then(r=>r.json())
-    ]);
-    if(a.ok){ $("#pillActive").textContent=fmt(a.total); }
-    if(w.ok){ $("#pillWaiting").textContent=fmt(w.total); }
-    if(a.ok&&w.ok) $("#pipeTabCount").textContent=fmt(a.total);
-  }catch(_){ /* the pills just stay at zero */ }
+    const r=await fetch(PAPI+"?view="+other+"&limit=1");
+    const b=await r.json();
+    if(!b.ok) throw new Error(b.error||"no data");
+    fill(other, fmt(b.total));
+  }catch(_){
+    /* show that it is unknown — a stale 0 reads as a real count */
+    fill(other,"—");
+  }
 }
 
 let pFacetsDone={};
@@ -1036,7 +1046,7 @@ function pTable(b){
 
 $$(".pill-btn[data-pv]").forEach(btn=>btn.onclick=()=>{
   $$(".pill-btn[data-pv]").forEach(x=>x.classList.remove("on")); btn.classList.add("on");
-  P.view=btn.dataset.pv; P.page=1; P.sort=""; loadPipe();
+  P.view=btn.dataset.pv; P.page=1; P.sort=""; loadPipe().then(pCounts);
 });
 $("#pApply").onclick=()=>{ P.page=1; loadPipe(); };
 $("#pClear").onclick=()=>{
@@ -1057,7 +1067,7 @@ $$(".tab[data-page]").forEach(b=>b.onclick=()=>{
   $("#page-break").classList.toggle("hidden",pg!=="break");
   $("#page-pipe").classList.toggle("hidden",pg!=="pipe");
   if(pg==="break") renderBreak();
-  if(pg==="pipe"){ loadPipe(); pCounts(); }
+  if(pg==="pipe"){ loadPipe().then(pCounts); }
 });
 
 /* ---------- wiring ---------- */
