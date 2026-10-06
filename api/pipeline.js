@@ -176,9 +176,10 @@ const looksDate = v => {
   return /^\d{4}-\d{2}-\d{2}/.test(t);
 };
 
-async function load(view) {
+async function load(view, force) {
+  // ?fresh=1 (the REFRESH button) skips the cache; everything else reuses it
   const c = cache[view];
-  if (c && Date.now() - c.at < TTL_MS) return c;
+  if (!force && c && Date.now() - c.at < TTL_MS) return c;
 
   const base = SQL[view].replace('{{ACCOUNT}}', esc(ACCOUNT));
 
@@ -251,7 +252,9 @@ module.exports = async (req, res) => {
   const view = SQL[q.view] ? q.view : 'active';
 
   try {
-    const c = await load(view);
+    const fresh = q.fresh === '1' || q.fresh === 'true';
+    if (fresh) noStore();
+    const c = await load(view, fresh);
     const cols = c.cols;
     const isDate = {}, isNum = {};
     cols.forEach(col => {

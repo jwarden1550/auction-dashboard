@@ -78,8 +78,9 @@ function totals(rows, cols) {
 /** Columns that shouldn't be offered as filters. */
 const SKIP = /url$|^id$|_id$/i;
 
-async function load() {
-  if (cache.rows && Date.now() - cache.at < TTL_MS) return cache;
+async function load(force) {
+  // ?fresh=1 (the REFRESH button) skips the cache; everything else reuses it
+  if (!force && cache.rows && Date.now() - cache.at < TTL_MS) return cache;
 
   const res = await fetch(`${HOST}/api/card/${CARD_ID}/query/json`, {
     method: 'POST',
@@ -146,7 +147,9 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const c = await load();
+    const fresh = q.fresh === '1' || q.fresh === 'true';
+    if (fresh) noStore();
+    const c = await load(fresh);
     const q = req.query;
     const cols = c.cols;
     const isDate = dateCols(c.rows, cols);

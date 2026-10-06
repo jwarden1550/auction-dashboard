@@ -495,6 +495,13 @@ const COLS=[
 ];
 
 /* ---------- query building ---------- */
+/* REFRESH was firing a request but getting the same snapshot back: the
+   function caches for minutes and the CDN in front of it longer, so a plain
+   re-request could only return what was already held. This flag makes the
+   next load ask the function to skip its cache, and the timestamp carries a
+   cache-buster so no CDN or browser copy can answer instead. */
+let FORCE_FRESH=false;
+const freshen=q=>{ if(FORCE_FRESH){ q.set("fresh","1"); q.set("_",String(Date.now())); } return q; };
 function filters(){
   const p=new URLSearchParams();
   const put=(k,v)=>{ v=(v||"").trim(); if(v) p.set(k,v); };
@@ -510,7 +517,7 @@ function filters(){
 }
 
 async function load(){
-  const p=filters();
+  const p=freshen(filters());
   p.set("limit","100"); p.set("offset",String((S.page-1)*100));
   p.set("sort",S.sort); p.set("dir",S.dir);
   $("#msg").innerHTML='<div class="bar"><i></i></div>';
@@ -945,7 +952,7 @@ async function loadPipe(){
     $("#msg").innerHTML='<div class="err">The pipeline needs its own serverless function, which a static local server can’t run — open the deployed site to use this tab.</div>';
     return;
   }
-  const q=pFilters();
+  const q=freshen(pFilters());
   q.set("limit","100"); q.set("offset",String((P.page-1)*100));
   if(P.sort){ q.set("sort",P.sort); q.set("dir",P.dir); }
   $("#msg").innerHTML='<div class="bar"><i></i></div>';
@@ -1060,7 +1067,18 @@ $("#clear").onclick=()=>{
   ["#fSport","#fGrade","#fStatus","#fTag"].forEach(s=>$$(s+" option").forEach(o=>o.selected=false));
   S.page=1; S.all=null; load();
 };
-$("#reload").onclick=()=>{ S.all=null; load(); if(currentPage==="break") renderBreak(); if(currentPage==="pipe"){ loadPipe(); pCounts(); } };
+$("#reload").onclick=async()=>{
+  FORCE_FRESH=true;
+  const btn=$("#reload"), label=btn.textContent;
+  btn.disabled=true; btn.textContent="REFRESHING…";
+  try{
+    S.all=null;
+    if(currentPage==="pipe"){ await loadPipe(); pCounts(); }
+    else { await load(); if(currentPage==="break") renderBreak(); }
+  } finally {
+    FORCE_FRESH=false; btn.disabled=false; btn.textContent=label;
+  }
+};
 $("#csv").onclick=exportXlsx;
 $("#grpBy").onchange=renderBreak;
 ["#fPlayer","#fSet","#fPo"].forEach(s=>$(s).addEventListener("keydown",e=>{
