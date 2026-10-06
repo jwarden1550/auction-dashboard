@@ -298,6 +298,7 @@ tr:hover .polink{border-bottom-color:var(--green)}
 @keyframes sl{0%{transform:translateX(-100%)}100%{transform:translateX(340%)}}
 .err{border:1px solid var(--red-dim);background:#1a0c0c;color:var(--red);padding:11px 13px;font-size:12.5px;margin-top:14px}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -318,7 +319,7 @@ tr:hover .polink{border-bottom-color:var(--green)}
   <div class="tabtools">
     <span class="pulled" id="mGen" title="These views are cached briefly, so this is when the data itself was read"></span>
     <button class="btn ghost" id="reload" title="Pull live data">REFRESH &#8635;</button>
-    <button class="btn ghost" id="csv">EXPORT CSV</button>
+    <button class="btn ghost" id="csv">EXPORT XLSX</button>
   </div>
 </div>
 
@@ -720,25 +721,60 @@ async function renderBreak(){
 }
 
 /* ---------- CSV ---------- */
-async function exportCsv(){
+/* Walk the pipeline endpoint the same way allRows() walks the auction one,
+   so an export from that tab covers the whole filtered view and not just the
+   page on screen. */
+async function pAllRows(){
+  if(!PAPI) return [];
+  const out=[]; let off=0, pages=1;
+  do{
+    const q=pFilters(); q.set("limit","1000"); q.set("offset",String(off));
+    const r=await fetch(PAPI+"?"+q.toString());
+    const b=await r.json();
+    if(!b.ok) throw new Error(b.error||"no data");
+    out.push(...(b.rows||[])); pages=b.pages||1; off+=1000;
+  } while(out.length<1000*pages && off<1000*pages);
+  return out;
+}
+
+/* Export the tab you are looking at, as .xlsx.
+   CSV handed Google Sheets plain text and let it guess — which turned the
+   7-digit card numbers and the ISO timestamps into whatever it felt like.
+   Writing a real workbook keeps numbers numeric and dates as dates, so the
+   file opens in Sheets already typed. */
+const DATE_FIELDS=["SOLD_AT","START_AT","END_AT"];
+async function exportXlsx(){
   $("#msg").innerHTML='<div class="bar"><i></i></div>';
   try{
-    const rows=await allRows();
+    const onPipe = currentPage==="pipe";
+    const rows = onPipe ? await pAllRows() : await allRows();
     $("#msg").innerHTML="";
-    if(!rows.length) return;
-    const cols=Object.keys(rows[0]);
-    const q=v=>{const s=v==null?"":String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
-    const csv=[cols.join(","),...rows.map(r=>cols.map(c=>q(r[c])).join(","))].join("\n");
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
-    a.download="arena-auctions-"+new Date().toISOString().slice(0,10)+".csv";
-    a.click(); URL.revokeObjectURL(a.href);
+    if(!rows.length){ $("#msg").innerHTML='<div class="err">Nothing to export with these filters.</div>'; return; }
+
+    const typed = rows.map(r=>{
+      const o={};
+      Object.keys(r).forEach(k=>{
+        let v=r[k];
+        if(v!==null&&v!==undefined&&v!==""&&DATE_FIELDS.includes(k)){
+          const t=Date.parse(v); if(!isNaN(t)) v=new Date(t);
+        }
+        o[k]=v;
+      });
+      return o;
+    });
+
+    const sheetName = onPipe ? (P.view==="active"?"In auction":"Waiting") : "Completed auctions";
+    const ws = XLSX.utils.json_to_sheet(typed);
+    ws["!cols"] = Object.keys(typed[0]).map(k=>({wch:Math.min(38,Math.max(10,k.length+2))}));
+    ws["!autofilter"] = {ref: ws["!ref"]};
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    const stamp = new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb, `arena-${onPipe?P.view:"completed"}-${stamp}.xlsx`);
   }catch(e){
     $("#msg").innerHTML='<div class="err">Export failed — '+esc(e.message)+'</div>';
   }
 }
-
-
 
 /* ---------- compact multi-select ----------
    Each filter was an 82px <select multiple> needing cmd-click, and six of them
@@ -1025,7 +1061,7 @@ $("#clear").onclick=()=>{
   S.page=1; S.all=null; load();
 };
 $("#reload").onclick=()=>{ S.all=null; load(); if(currentPage==="break") renderBreak(); if(currentPage==="pipe"){ loadPipe(); pCounts(); } };
-$("#csv").onclick=exportCsv;
+$("#csv").onclick=exportXlsx;
 $("#grpBy").onchange=renderBreak;
 ["#fPlayer","#fSet","#fPo"].forEach(s=>$(s).addEventListener("keydown",e=>{
   if(e.key==="Enter"){ S.page=1; S.all=null; load(); }
