@@ -372,6 +372,11 @@ tr:hover .polink{border-bottom-color:var(--green)}
   <div class="kpis" id="pipeKpis"></div>
 
   <div class="pills" style="margin-top:16px">
+    <button class="pill-btn on" data-cat="card">CARDS</button>
+    <button class="pill-btn" data-cat="watch">WATCHES</button>
+  </div>
+
+  <div class="pills" style="margin-top:8px">
     <button class="pill-btn on" data-pv="active"><span class="pd"></span>IN AUCTION<b id="pillActive">0</b></button>
     <button class="pill-btn" data-pv="waiting"><span class="pd"></span>WAITING<b id="pillWaiting">0</b></button>
   </div>
@@ -770,14 +775,14 @@ async function exportXlsx(){
       return o;
     });
 
-    const sheetName = onPipe ? (P.view==="active"?"In auction":"Waiting") : "Completed auctions";
+    const sheetName = onPipe ? ((P.cat==="card"?"Cards ":"Watches ")+(P.view==="active"?"in auction":"waiting")) : "Completed auctions";
     const ws = XLSX.utils.json_to_sheet(typed);
     ws["!cols"] = Object.keys(typed[0]).map(k=>({wch:Math.min(38,Math.max(10,k.length+2))}));
     ws["!autofilter"] = {ref: ws["!ref"]};
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
     const stamp = new Date().toISOString().slice(0,10);
-    XLSX.writeFile(wb, `arena-${onPipe?P.view:"completed"}-${stamp}.xlsx`);
+    XLSX.writeFile(wb, `arena-${onPipe?P.cat+"-"+P.view:"completed"}-${stamp}.xlsx`);
   }catch(e){
     $("#msg").innerHTML='<div class="err">Export failed — '+esc(e.message)+'</div>';
   }
@@ -877,11 +882,11 @@ function filterToggle(togId, bodyId, activeId, read){
    active auction. An item leaves in_marketplace when its lot goes live, so the
    two sets cannot overlap. COLLECTION is the account's on-screen section. */
 const PAPI = LOCAL ? null : "/api/pipeline";
-const P = {view:"active", page:1, sort:"", dir:"desc", meta:null, facets:{}};
+const P = {cat:"card", view:"active", page:1, sort:"", dir:"desc", meta:null, facets:{}};
 
 function pFilters(){
   const q=new URLSearchParams();
-  q.set("view",P.view);
+  q.set("view",P.view); q.set("category",P.cat);
   const put=(k,v)=>{ v=(v||"").trim(); if(v) q.set(k,v); };
   put("PLAYER_NAME",$("#pPlayer").value);
   put("SET_NAME",$("#pSet").value);
@@ -891,39 +896,73 @@ function pFilters(){
   return q;
 }
 
+/* Cards and watches share no attributes, so each category gets its own
+   columns. Watches have no slab image, and no VIEW/ADMIN link — admin has no
+   watch route and the public slug for watches is unverified, so rather than
+   ship links that 404 the way the card auction links did, they are omitted. */
 const PCOLS = {
-  active:[
-    {k:"FRONT_SLAB_PICTURE_URL",t:"",kind:"img",nosort:true},
-    {k:"PLAYER_NAME",t:"PLAYER",kind:"wrap"},
-    {k:"SET_NAME",t:"SET",kind:"wrap"},
-    {k:"COLLECTION",t:"SECTION",kind:"sec"},
-    {k:"SPORT",t:"SPORT"},
-    {k:"GRADE",t:"GRADE"},
-    {k:"TAG",t:"TAG"},
-    {k:"END_AT",t:"CLOSES",kind:"date"},
-    {k:"HOURS_LEFT",t:"HRS LEFT",kind:"hrs"},
-    {k:"CURRENT_BID",t:"CURRENT BID",kind:"usd"},
-    {k:"TOTAL_BIDS",t:"BIDS",kind:"int"},
-    {k:"START_PRICE",t:"START",kind:"usd"},
-    {k:"RESERVE",t:"RESERVE",kind:"usd"},
-    {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
-    {k:"PUBLIC_URL",t:"VIEW",kind:"view",nosort:true},
-    {k:"ADMIN_URL",t:"ADMIN",kind:"admin",nosort:true}
-  ],
-  waiting:[
-    {k:"FRONT_SLAB_PICTURE_URL",t:"",kind:"img",nosort:true},
-    {k:"PLAYER_NAME",t:"PLAYER",kind:"wrap"},
-    {k:"SET_NAME",t:"SET",kind:"wrap"},
-    {k:"COLLECTION",t:"SECTION",kind:"sec"},
-    {k:"SPORT",t:"SPORT"},
-    {k:"GRADE",t:"GRADE"},
-    {k:"TAG",t:"TAG"},
-    {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
-    {k:"PAST_AUCTIONS",t:"PRIOR RUNS",kind:"int"},
-    {k:"ITEM_STATUS",t:"ITEM STATUS"},
-    {k:"PUBLIC_URL",t:"VIEW",kind:"view",nosort:true},
-    {k:"ADMIN_URL",t:"ADMIN",kind:"admin",nosort:true}
-  ]
+  card:{
+    active:[
+      {k:"FRONT_SLAB_PICTURE_URL",t:"",kind:"img",nosort:true},
+      {k:"PLAYER_NAME",t:"PLAYER",kind:"wrap"},
+      {k:"SET_NAME",t:"SET",kind:"wrap"},
+      {k:"COLLECTION",t:"SECTION",kind:"sec"},
+      {k:"SPORT",t:"SPORT"},
+      {k:"GRADE",t:"GRADE"},
+      {k:"TAG",t:"TAG"},
+      {k:"END_AT",t:"CLOSES",kind:"date"},
+      {k:"HOURS_LEFT",t:"HRS LEFT",kind:"hrs"},
+      {k:"CURRENT_BID",t:"CURRENT BID",kind:"usd"},
+      {k:"TOTAL_BIDS",t:"BIDS",kind:"int"},
+      {k:"START_PRICE",t:"START",kind:"usd"},
+      {k:"RESERVE",t:"RESERVE",kind:"usd"},
+      {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
+      {k:"PUBLIC_URL",t:"VIEW",kind:"view",nosort:true},
+      {k:"ADMIN_URL",t:"ADMIN",kind:"admin",nosort:true}
+    ],
+    waiting:[
+      {k:"FRONT_SLAB_PICTURE_URL",t:"",kind:"img",nosort:true},
+      {k:"PLAYER_NAME",t:"PLAYER",kind:"wrap"},
+      {k:"SET_NAME",t:"SET",kind:"wrap"},
+      {k:"COLLECTION",t:"SECTION",kind:"sec"},
+      {k:"SPORT",t:"SPORT"},
+      {k:"GRADE",t:"GRADE"},
+      {k:"TAG",t:"TAG"},
+      {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
+      {k:"PAST_AUCTIONS",t:"PRIOR RUNS",kind:"int"},
+      {k:"ITEM_STATUS",t:"ITEM STATUS"},
+      {k:"PUBLIC_URL",t:"VIEW",kind:"view",nosort:true},
+      {k:"ADMIN_URL",t:"ADMIN",kind:"admin",nosort:true}
+    ]
+  },
+  watch:{
+    active:[
+      {k:"BRAND",t:"BRAND",kind:"wrap"},
+      {k:"MODEL",t:"MODEL",kind:"wrap"},
+      {k:"REFERENCE",t:"REF"},
+      {k:"CONDITION",t:"CONDITION"},
+      {k:"COLLECTION",t:"SECTION",kind:"sec"},
+      {k:"TAG",t:"TAG"},
+      {k:"END_AT",t:"CLOSES",kind:"date"},
+      {k:"HOURS_LEFT",t:"HRS LEFT",kind:"hrs"},
+      {k:"CURRENT_BID",t:"CURRENT BID",kind:"usd"},
+      {k:"TOTAL_BIDS",t:"BIDS",kind:"int"},
+      {k:"START_PRICE",t:"START",kind:"usd"},
+      {k:"RESERVE",t:"RESERVE",kind:"usd"},
+      {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"}
+    ],
+    waiting:[
+      {k:"BRAND",t:"BRAND",kind:"wrap"},
+      {k:"MODEL",t:"MODEL",kind:"wrap"},
+      {k:"REFERENCE",t:"REF"},
+      {k:"CONDITION",t:"CONDITION"},
+      {k:"COLLECTION",t:"SECTION",kind:"sec"},
+      {k:"TAG",t:"TAG"},
+      {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
+      {k:"PAST_AUCTIONS",t:"PRIOR RUNS",kind:"int"},
+      {k:"ITEM_STATUS",t:"ITEM STATUS"}
+    ]
+  }
 };
 
 function pCell(row,c){
@@ -981,7 +1020,7 @@ async function pCounts(){
   if(P.meta&&P.meta.ok) fill(P.view, fmt(P.meta.total));
   const other = P.view==="active" ? "waiting" : "active";
   try{
-    const r=await fetch(PAPI+"?view="+other+"&limit=1");
+    const r=await fetch(PAPI+"?view="+other+"&category="+P.cat+"&limit=1");
     const b=await r.json();
     if(!b.ok) throw new Error(b.error||"no data");
     fill(other, fmt(b.total));
@@ -993,16 +1032,24 @@ async function pCounts(){
 
 let pFacetsDone={};
 function pFacets(b){
-  if(pFacetsDone[P.view]||!b.facets) return;
+  const fk=P.cat+":"+P.view;
+  if(pFacetsDone[fk]||!b.facets) return;
   const fill=(el,col)=>{
     const f=b.facets[col]; if(!f||!el) return;
     el.innerHTML=f.values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
   };
-  fill($("#pColl"),"COLLECTION"); fill($("#pSport"),"SPORT");
-  fill($("#pTag"),"TAG"); fill($("#pGrade"),"GRADE");
-  [["#pColl","section"],["#pSport","sport"],["#pTag","tag"],["#pGrade","grade"]]
+  fill($("#pColl"),"COLLECTION"); fill($("#pTag"),"TAG");
+  /* cards have SPORT and GRADE; watches have neither, so those two filters
+     are hidden rather than left as empty dropdowns */
+  const cardOnly = P.cat==="card";
+  [["#pSport","SPORT"],["#pGrade","GRADE"]].forEach(([id,col])=>{
+    const box=$(id)&&$(id).closest("div");
+    if(box) box.style.display = cardOnly ? "" : "none";
+    if(cardOnly) fill($(id),col);
+  });
+  [["#pColl","section"],["#pTag","tag"]].concat(cardOnly?[["#pSport","sport"],["#pGrade","grade"]]:[])
     .forEach(([id,lab])=>{ msel(id,lab); $(id).dispatchEvent(new Event("optionsfilled")); });
-  pFacetsDone[P.view]=true;
+  pFacetsDone[fk]=true;
 }
 
 function pKpis(b){
@@ -1028,7 +1075,7 @@ function pKpis(b){
 }
 
 function pTable(b){
-  const cols=PCOLS[P.view].filter(c=>!b.columns||b.columns.includes(c.k));
+  const cols=PCOLS[P.cat][P.view].filter(c=>!b.columns||b.columns.includes(c.k));
   $("#pipeTbl thead").innerHTML="<tr>"+cols.map(c=>{
     const on=P.sort===c.k;
     return `<th ${c.nosort?"":`data-k="${c.k}"`}>${esc(c.t)}${on?`<span class="ar">${P.dir==="asc"?"▲":"▼"}</span>`:""}</th>`;
@@ -1043,6 +1090,18 @@ function pTable(b){
   });
   pager($("#pipePager"),P.page,b.pages||1,b.matched||0,pg=>{P.page=pg;loadPipe();});
 }
+
+$$(".pill-btn[data-cat]").forEach(btn=>btn.onclick=()=>{
+  if(btn.classList.contains("on")) return;
+  $$(".pill-btn[data-cat]").forEach(x=>x.classList.remove("on")); btn.classList.add("on");
+  P.cat=btn.dataset.cat; P.page=1; P.sort="";
+  /* the filter options differ per category, so clear what was chosen and
+     let the new category's facets repopulate */
+  ["#pPlayer","#pSet"].forEach(x=>$(x).value="");
+  ["#pColl","#pSport","#pTag","#pGrade"].forEach(x=>$$(x+" option").forEach(o=>o.selected=false));
+  pFacetsDone={};
+  loadPipe().then(pCounts);
+});
 
 $$(".pill-btn[data-pv]").forEach(btn=>btn.onclick=()=>{
   $$(".pill-btn[data-pv]").forEach(x=>x.classList.remove("on")); btn.classList.add("on");
