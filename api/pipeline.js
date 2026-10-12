@@ -1,7 +1,8 @@
 /**
  * Arena Auctions — pipeline: what is in auction now, and what is waiting.
  *
- * GET /api/pipeline?view=active            lots currently accepting bids
+ * GET /api/pipeline?view=active&category=card   lots currently accepting bids
+ * category is card (default) or watch — each has its own attribute joins
  * GET /api/pipeline?view=waiting           inventory queued, not yet listed
  * GET /api/pipeline?view=active&facet=SPORT&fq=base
  *
@@ -155,6 +156,93 @@ WHERE NOT COALESCE(i._SNOWFLAKE_DELETED, FALSE)
 ORDER BY c.ESTIMATED_VALUE_CENTS DESC NULLS LAST`
 };
 
+/* Watches carry none of the card attributes — no row in ADMIN.CARDS at all.
+   Their catalog lives in ADMIN.WATCH_TYPES (BRAND_NAME, MODEL, REFERENCE) and
+   ADMIN.WATCH_CONDITIONS (CONDITION, ESTIMATED_VALUE_CENTS), reached from
+   items.WATCH_TYPE_ID / items.WATCH_CONDITION_ID. Verified against the
+   account: all 3,401 watches resolve brand, condition and value, no nulls.
+   CONDITION and REFERENCE are quoted — both are reserved words. */
+const WATCH_SQL = {
+  active: `
+SELECT
+    a.ID                                                            AS AUCTION_ID,
+    wt.BRAND_NAME                                                   AS BRAND,
+    wt.MODEL                                                        AS MODEL,
+    wt."REFERENCE"                                                  AS "REFERENCE",
+    wc."CONDITION"                                                  AS "CONDITION",
+    i.TAG,
+    COALESCE(col.NAME, '(uncollected)')                             AS "COLLECTION",
+    col.IS_SHOEBOX,
+    i.CATEGORY                                                      AS ITEM_CATEGORY,
+    CONVERT_TIMEZONE('America/Los_Angeles', a.START_AT)             AS START_AT,
+    CONVERT_TIMEZONE('America/Los_Angeles', a.END_AT)               AS END_AT,
+    DATEDIFF('hour', CURRENT_TIMESTAMP(), a.END_AT)                 AS HOURS_LEFT,
+    wc.ESTIMATED_VALUE_CENTS / 100.0                                AS ESTIMATED_VALUE,
+    a.START_VALUE_CENTS / 100.0                                     AS START_PRICE,
+    a.RESERVE_VALUE_CENTS / 100.0                                   AS RESERVE,
+    a.CURRENT_BID_VALUE_CENTS / 100.0                               AS CURRENT_BID,
+    a.TOTAL_BIDS,
+    a.STATUS                                                        AS AUCTION_STATUS
+FROM APP_PROD.PUBLIC.AUCTION a
+JOIN APP_PROD.PUBLIC.USERS u
+  ON u.ID = a.USER_ID
+ AND NOT COALESCE(u._SNOWFLAKE_DELETED, FALSE)
+LEFT JOIN APP_PROD.PUBLIC.ITEMS i
+  ON i.ID = a.ITEM_ID
+ AND NOT COALESCE(i._SNOWFLAKE_DELETED, FALSE)
+LEFT JOIN APP_PROD.PUBLIC.COLLECTIONS col
+  ON col.ID = i.COLLECTION_ID
+ AND NOT COALESCE(col._SNOWFLAKE_DELETED, FALSE)
+LEFT JOIN APP_PROD.ADMIN.WATCH_TYPES wt      ON wt.ID = i.WATCH_TYPE_ID
+LEFT JOIN APP_PROD.ADMIN.WATCH_CONDITIONS wc ON wc.ID = i.WATCH_CONDITION_ID
+WHERE NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
+  AND u.EMAIL = '{{ACCOUNT}}'
+  AND a.STATUS = 'active'
+  AND a.ITEM_CATEGORY = 'watch'
+ORDER BY a.END_AT`,
+
+  waiting: `
+SELECT
+    i.ID                                                            AS ITEM_ID,
+    wt.BRAND_NAME                                                   AS BRAND,
+    wt.MODEL                                                        AS MODEL,
+    wt."REFERENCE"                                                  AS "REFERENCE",
+    wc."CONDITION"                                                  AS "CONDITION",
+    i.TAG,
+    COALESCE(col.NAME, '(uncollected)')                             AS "COLLECTION",
+    col.IS_SHOEBOX,
+    i.CATEGORY                                                      AS ITEM_CATEGORY,
+    i.STATUS                                                        AS ITEM_STATUS,
+    wc.ESTIMATED_VALUE_CENTS / 100.0                                AS ESTIMATED_VALUE,
+    (SELECT COUNT(*)
+       FROM APP_PROD.PUBLIC.AUCTION a2
+      WHERE a2.ITEM_ID = i.ID
+        AND NOT COALESCE(a2._SNOWFLAKE_DELETED, FALSE))             AS PAST_AUCTIONS
+FROM APP_PROD.PUBLIC.ITEMS i
+JOIN APP_PROD.PUBLIC.USERS u
+  ON u.ID = i.USER_ID
+ AND NOT COALESCE(u._SNOWFLAKE_DELETED, FALSE)
+LEFT JOIN APP_PROD.PUBLIC.COLLECTIONS col
+  ON col.ID = i.COLLECTION_ID
+ AND NOT COALESCE(col._SNOWFLAKE_DELETED, FALSE)
+LEFT JOIN APP_PROD.ADMIN.WATCH_TYPES wt      ON wt.ID = i.WATCH_TYPE_ID
+LEFT JOIN APP_PROD.ADMIN.WATCH_CONDITIONS wc ON wc.ID = i.WATCH_CONDITION_ID
+WHERE NOT COALESCE(i._SNOWFLAKE_DELETED, FALSE)
+  AND u.EMAIL = '{{ACCOUNT}}'
+  AND i.STATUS = 'in_marketplace'
+  AND i.CATEGORY = 'watch'
+  AND NOT EXISTS (
+        SELECT 1
+          FROM APP_PROD.PUBLIC.AUCTION a
+         WHERE a.ITEM_ID = i.ID
+           AND a.STATUS = 'active'
+           AND NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
+      )
+ORDER BY wc.ESTIMATED_VALUE_CENTS DESC NULLS LAST`
+};
+
+const BY_CATEGORY = { card: SQL, watch: WATCH_SQL };
+
 const cache = {};
 const TTL_MS = 5 * 60 * 1000;
 
@@ -176,12 +264,13 @@ const looksDate = v => {
   return /^\d{4}-\d{2}-\d{2}/.test(t);
 };
 
-async function load(view, force) {
+async function load(view, force, category) {
   // ?fresh=1 (the REFRESH button) skips the cache; everything else reuses it
-  const c = cache[view];
+  const key = `${category}:${view}`;
+  const c = cache[key];
   if (!force && c && Date.now() - c.at < TTL_MS) return c;
 
-  const base = SQL[view].replace('{{ACCOUNT}}', esc(ACCOUNT));
+  const base = BY_CATEGORY[category][view].replace('{{ACCOUNT}}', esc(ACCOUNT));
 
   // Metabase caps an ad-hoc native query at 2,000 bare rows and ignores a
   // requested constraint, so walk the result with LIMIT/OFFSET and stitch the
@@ -212,8 +301,8 @@ async function load(view, force) {
     if (batch.length < PAGE) break;       // last page
   }
 
-  cache[view] = { at: Date.now(), rows, cols };
-  return cache[view];
+  cache[key] = { at: Date.now(), rows, cols };
+  return cache[key];
 }
 
 /** Totals: lot/item count plus the money columns each view actually carries. */
@@ -249,12 +338,13 @@ module.exports = async (req, res) => {
   }
 
   const q = req.query || {};
-  const view = SQL[q.view] ? q.view : 'active';
+  const category = BY_CATEGORY[q.category] ? q.category : 'card';
+  const view = BY_CATEGORY[category][q.view] ? q.view : 'active';
 
   try {
     const fresh = q.fresh === '1' || q.fresh === 'true';
     if (fresh) noStore();
-    const c = await load(view, fresh);
+    const c = await load(view, fresh, category);
     const cols = c.cols;
     const isDate = {}, isNum = {};
     cols.forEach(col => {
@@ -271,7 +361,7 @@ module.exports = async (req, res) => {
       const seen = new Set();
       c.rows.forEach(r => { const v = r[key]; if (v !== null && v !== '') seen.add(String(v)); });
       return res.status(200).json({
-        ok: true, view, facet: key, total: seen.size,
+        ok: true, view, category, facet: key, total: seen.size,
         values: [...seen].filter(v => !needle || v.toLowerCase().includes(needle)).sort().slice(0, 300)
       });
     }
@@ -313,6 +403,7 @@ module.exports = async (req, res) => {
     return res.status(200).json({
       ok: true,
       view,
+      category,
       account: ACCOUNT,
       generated: new Date(c.at).toISOString(),
       columns: cols,
