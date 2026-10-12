@@ -364,11 +364,15 @@ async function load(view, force, category) {
 /** Totals: lot/item count plus the money columns each view actually carries. */
 function totals(rows, view) {
   const sum = k => rows.reduce((a, r) => a + num(r[k]), 0);
-  const base = { count: rows.length, est_value: sum('ESTIMATED_VALUE') };
+  const base = { count: rows.length, est_value: sum('ESTIMATED_VALUE'), cost: sum('PURCHASE_COST') };
   if (view === 'active') {
     const withBids = rows.filter(r => num(r.TOTAL_BIDS) > 0);
+    const bid = sum('CURRENT_BID');
     return {
       ...base,
+      // where these lots stand if every one sold at its current bid
+      pl_at_bid: bid - base.cost,
+      margin_at_bid: bid ? ((bid - base.cost) / bid) * 100 : null,
       current_bid: sum('CURRENT_BID'),
       start_price: sum('START_PRICE'),
       bids: sum('TOTAL_BIDS'),
@@ -378,7 +382,12 @@ function totals(rows, view) {
       reserve_total: sum('RESERVE')
     };
   }
-  return { ...base, relists: rows.filter(r => num(r.PAST_AUCTIONS) > 0).length };
+  // waiting has no sale price, so measure against the estimate instead
+  return {
+    ...base,
+    relists: rows.filter(r => num(r.PAST_AUCTIONS) > 0).length,
+    margin_at_ev: base.est_value ? ((base.est_value - base.cost) / base.est_value) * 100 : null
+  };
 }
 
 const SKIP = /url$|^id$|_id$/i;

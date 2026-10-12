@@ -965,6 +965,9 @@ const PCOLS = {
       {k:"END_AT",t:"CLOSES",kind:"date"},
       {k:"HOURS_LEFT",t:"HRS LEFT",kind:"hrs"},
       {k:"CURRENT_BID",t:"CURRENT BID",kind:"usd"},
+      {k:"PURCHASE_COST",t:"PURCHASE COST",kind:"usd"},
+      {k:"PL_AT_BID",t:"P/L @ BID",kind:"plbid",nosort:true,always:true},
+      {k:"MARGIN_AT_BID",t:"MARGIN @ BID",kind:"mgnbid",nosort:true,always:true},
       {k:"TOTAL_BIDS",t:"BIDS",kind:"int"},
       {k:"START_PRICE",t:"START",kind:"usd"},
       {k:"RESERVE",t:"RESERVE",kind:"usd"},
@@ -981,6 +984,8 @@ const PCOLS = {
       {k:"GRADE",t:"GRADE"},
       {k:"TAG",t:"TAG"},
       {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
+      {k:"PURCHASE_COST",t:"PURCHASE COST",kind:"usd"},
+      {k:"MARGIN_AT_EV",t:"MARGIN @ EV",kind:"mgnev",nosort:true,always:true},
       {k:"PAST_AUCTIONS",t:"PRIOR RUNS",kind:"int"},
       {k:"ITEM_STATUS",t:"ITEM STATUS"},
       {k:"PUBLIC_URL",t:"VIEW",kind:"view",nosort:true},
@@ -998,6 +1003,9 @@ const PCOLS = {
       {k:"END_AT",t:"CLOSES",kind:"date"},
       {k:"HOURS_LEFT",t:"HRS LEFT",kind:"hrs"},
       {k:"CURRENT_BID",t:"CURRENT BID",kind:"usd"},
+      {k:"PURCHASE_COST",t:"PURCHASE COST",kind:"usd"},
+      {k:"PL_AT_BID",t:"P/L @ BID",kind:"plbid",nosort:true,always:true},
+      {k:"MARGIN_AT_BID",t:"MARGIN @ BID",kind:"mgnbid",nosort:true,always:true},
       {k:"TOTAL_BIDS",t:"BIDS",kind:"int"},
       {k:"START_PRICE",t:"START",kind:"usd"},
       {k:"RESERVE",t:"RESERVE",kind:"usd"},
@@ -1011,6 +1019,8 @@ const PCOLS = {
       {k:"COLLECTION",t:"SECTION",kind:"sec"},
       {k:"TAG",t:"TAG"},
       {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
+      {k:"PURCHASE_COST",t:"PURCHASE COST",kind:"usd"},
+      {k:"MARGIN_AT_EV",t:"MARGIN @ EV",kind:"mgnev",nosort:true,always:true},
       {k:"PAST_AUCTIONS",t:"PRIOR RUNS",kind:"int"},
       {k:"ITEM_STATUS",t:"ITEM STATUS"}
     ]
@@ -1029,6 +1039,23 @@ function pCell(row,c){
   }
   if(c.kind==="admin"){
     return v?`<td><a class="alink" style="opacity:.62" href="${esc(v)}" target="_blank" rel="noopener">ADMIN ↗</a></td>`:`<td></td>`;
+  }
+  /* A live lot has no sale price, so margin is measured against the current
+     bid — what it would make if it closed now. Waiting lots have no bid at
+     all, so those measure against estimated value. Both columns are labelled
+     so neither reads as a settled figure. */
+  if(c.kind==="plbid"||c.kind==="mgnbid"){
+    const cost=numv(row.PURCHASE_COST), bid=numv(row.CURRENT_BID);
+    if(!bid) return `<td class="num" title="no bids yet">—</td>`;
+    const n=c.kind==="plbid" ? bid-cost : ((bid-cost)/bid)*100;
+    const txt=c.kind==="plbid" ? usdc(n) : pct(n);
+    return `<td class="num ${n>0?"pos":n<0?"neg":""}">${txt}</td>`;
+  }
+  if(c.kind==="mgnev"){
+    const cost=numv(row.PURCHASE_COST), ev=numv(row.ESTIMATED_VALUE);
+    if(!ev) return `<td class="num" title="no estimated value">—</td>`;
+    const n=((ev-cost)/ev)*100;
+    return `<td class="num ${n>0?"pos":n<0?"neg":""}">${pct(n)}</td>`;
   }
   if(c.kind==="hrs"){
     if(v===null||v===undefined||v==="") return `<td class="num">—</td>`;
@@ -1123,12 +1150,15 @@ function pKpis(b){
     out.push(tile("CLOSING < 24H",fmt(t.closing_24h),"finish today or tomorrow",t.closing_24h?"bad":""));
     out.push(tile("CURRENT BIDS",usd(t.current_bid),`${fmt(t.bids)} bids placed`,"good"));
     out.push(tile("NO BIDS YET",fmt(t.no_bids),"still at opening price",t.no_bids?"gold":""));
+    out.push(tile("PURCHASE COST",usd(t.cost),"what these lots cost"));
+    out.push(tile("P/L @ BID",usd(t.pl_at_bid),"if every lot closed now",t.pl_at_bid>=0?"good":"bad"));
+    out.push(tile("MARGIN @ BID",pct(t.margin_at_bid),"bids minus cost ÷ bids",t.margin_at_bid>=0?"good":"bad"));
     out.push(tile("EST VALUE",usd(t.est_value),"book value on the block"));
-    out.push(tile("RESERVE",usd(t.reserve_total),"total reserve to clear"));
   }else{
     out.push(tile("WAITING",fmt(t.count),filtered?`of ${fmt(b.total)} queued`:"in marketplace, not listed"));
     out.push(tile("EST VALUE",usd(t.est_value),"book value waiting","gold"));
-    out.push(tile("AVG EST",usd(t.count?t.est_value/t.count:0),"per item"));
+    out.push(tile("PURCHASE COST",usd(t.cost),"what these lots cost"));
+    out.push(tile("MARGIN @ EV",pct(t.margin_at_ev),"if each sold at estimate",t.margin_at_ev>=0?"good":"bad"));
     out.push(tile("RELISTS",fmt(t.relists),"ran before, back in queue"));
   }
   $("#pipeKpis").innerHTML=out.join("");
@@ -1137,7 +1167,7 @@ function pKpis(b){
 }
 
 function pTable(b){
-  const cols=PCOLS[P.cat][P.view].filter(c=>!b.columns||b.columns.includes(c.k));
+  const cols=PCOLS[P.cat][P.view].filter(c=>c.always||!b.columns||b.columns.includes(c.k));
   $("#pipeTbl thead").innerHTML="<tr>"+cols.map(c=>{
     const on=P.sort===c.k;
     return `<th ${c.nosort?"":`data-k="${c.k}"`}>${esc(c.t)}${on?`<span class="ar">${P.dir==="asc"?"▲":"▼"}</span>`:""}</th>`;
