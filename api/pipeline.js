@@ -38,6 +38,12 @@
  *   - the on-screen sections are public.collections (NAME, IS_SHOEBOX) joined
  *     via items.COLLECTION_ID; verified against the account UI exactly
  *     (Auctions 3,079 / Shoebox 701; their live lots 55 + 93 = 148)
+ *   - PREMIER_BLOCK names the curated block a live lot belongs to, or
+ *     'standard'. Premier auctions are ordinary auction rows with a
+ *     premier_auctions record pointing at them, so they were already counted
+ *     here — just not distinguishable. Read as a scalar subquery because an
+ *     auction can carry more than one premier record and a join would
+ *     duplicate the lot.
  *   - both views are scoped to the card category. The account also holds
  *     watches, coins and wines; those have no row in ADMIN.CARDS, so they
  *     rendered as a line of dashes. It also matches COMPLETED AUCTIONS,
@@ -97,6 +103,15 @@ SELECT
     a.RESERVE_VALUE_CENTS / 100.0                                   AS RESERVE,
     a.CURRENT_BID_VALUE_CENTS / 100.0                               AS CURRENT_BID,
     a.TOTAL_BIDS,
+    COALESCE((SELECT MAX(pb.NAME)
+                FROM APP_PROD.PUBLIC.PREMIER_AUCTIONS pa
+                JOIN APP_PROD.PUBLIC.PREMIER_AUCTION_BLOCKS pb
+                  ON pb.ID = pa.BLOCK_ID
+                 AND NOT COALESCE(pb._SNOWFLAKE_DELETED, FALSE)
+               WHERE pa.AUCTION_ID = a.ID
+                 AND pa.APPROVAL_STATUS = 'approved'
+                 AND NOT COALESCE(pa._SNOWFLAKE_DELETED, FALSE)),
+             'standard')                                            AS PREMIER_BLOCK,
     a.STATUS                                                        AS AUCTION_STATUS
 FROM APP_PROD.PUBLIC.AUCTION a
 JOIN APP_PROD.PUBLIC.USERS u
@@ -223,6 +238,15 @@ SELECT
     a.RESERVE_VALUE_CENTS / 100.0                                   AS RESERVE,
     a.CURRENT_BID_VALUE_CENTS / 100.0                               AS CURRENT_BID,
     a.TOTAL_BIDS,
+    COALESCE((SELECT MAX(pb.NAME)
+                FROM APP_PROD.PUBLIC.PREMIER_AUCTIONS pa
+                JOIN APP_PROD.PUBLIC.PREMIER_AUCTION_BLOCKS pb
+                  ON pb.ID = pa.BLOCK_ID
+                 AND NOT COALESCE(pb._SNOWFLAKE_DELETED, FALSE)
+               WHERE pa.AUCTION_ID = a.ID
+                 AND pa.APPROVAL_STATUS = 'approved'
+                 AND NOT COALESCE(pa._SNOWFLAKE_DELETED, FALSE)),
+             'standard')                                            AS PREMIER_BLOCK,
     a.STATUS                                                        AS AUCTION_STATUS
 FROM APP_PROD.PUBLIC.AUCTION a
 JOIN APP_PROD.PUBLIC.USERS u
