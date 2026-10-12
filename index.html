@@ -415,6 +415,11 @@ tr:hover .polink{border-bottom-color:var(--green)}
 
 <!-- ============ BREAKDOWN ============ -->
 <div id="page-break" class="hidden">
+  <div class="crumb hidden" id="brkCrumb">
+    <button class="back" id="brkBack" title="Back to all groups">&#8592;</button>
+    <h2 id="brkCrumbTitle"></h2>
+  </div>
+
   <div class="card" style="margin-top:16px">
     <div class="card-h">
       <span>TOTALS BY</span>
@@ -683,30 +688,45 @@ async function allRows(){
 
 const numv=v=>{const n=parseFloat(String(v==null?"":v).replace(/[$,\s]/g,""));return isNaN(n)?0:n;};
 
-async function renderBreak(){
-  const col=$("#grpBy").value;
-  $("#msg").innerHTML='<div class="bar"><i></i></div>';
-  try{
-    const rows=await allRows();
-    $("#msg").innerHTML="";
-    const g=new Map();
-    rows.forEach(r=>{
-      const k=r[col]==null||r[col]===""?"—":String(r[col]);
-      let o=g.get(k);
-      if(!o){ o={k,lots:0,cost:0,sold:0,soldCount:0,costOfSold:0,bids:0}; g.set(k,o); }
-      o.lots++; o.cost+=numv(r.PURCHASE_COST); o.bids+=numv(r.TOTAL_BIDS);
-      const sp=numv(r.SOLD_PRICE);
-      if(sp){ o.sold+=sp; o.soldCount++; o.costOfSold+=numv(r.PURCHASE_COST); }
-    });
-    const list=[...g.values()].map(o=>({...o,
-      profit:o.sold-o.costOfSold,
-      margin:o.sold?((o.sold-o.costOfSold)/o.sold)*100:null,
-      avg:o.soldCount?o.sold/o.soldCount:0
-    })).sort((a,b)=>b.sold-a.sold);
+/* Clicking a group drills into estimated-value bands within it. Everything is
+   already in the browser from allRows(), so this needs no extra query. */
+const EV_BANDS=[
+  {k:"$0 – $24",     lo:0,   hi:25},
+  {k:"$25 – $99",    lo:25,  hi:100},
+  {k:"$100 – $499",  lo:100, hi:500},
+  {k:"$500 or more", lo:500, hi:Infinity}
+];
+const bandOf=v=>{
+  if(v===null||v===undefined||v==="") return "(no est value)";
+  const n=numv(v);
+  const b=EV_BANDS.find(x=>n>=x.lo&&n<x.hi);
+  return b?b.k:EV_BANDS[0].k;
+};
+let BRK={value:null};   // the group being drilled into, or null
 
-    const head=["",  "LOTS","SOLD #","COST","SOLD","PROFIT","MARGIN","AVG SOLD","BIDS"];
-    $("#brkTbl thead").innerHTML="<tr>"+head.map((h,i)=>`<th${i?' style="text-align:right"':""}>${h||col.replace(/_/g," ")}</th>`).join("")+"</tr>";
-    $("#brkTbl tbody").innerHTML=list.map(o=>`<tr>
+/* one row of totals for a set of lots */
+function brkAgg(rows,keyOf){
+  const g=new Map();
+  rows.forEach(r=>{
+    const k=keyOf(r);
+    let o=g.get(k);
+    if(!o){ o={k,lots:0,cost:0,sold:0,soldCount:0,costOfSold:0,bids:0}; g.set(k,o); }
+    o.lots++; o.cost+=numv(r.PURCHASE_COST); o.bids+=numv(r.TOTAL_BIDS);
+    const sp=numv(r.SOLD_PRICE);
+    if(sp){ o.sold+=sp; o.soldCount++; o.costOfSold+=numv(r.PURCHASE_COST); }
+  });
+  return [...g.values()].map(o=>({...o,
+    profit:o.sold-o.costOfSold,
+    margin:o.sold?((o.sold-o.costOfSold)/o.sold)*100:null,
+    avg:o.soldCount?o.sold/o.soldCount:0
+  }));
+}
+
+function brkTable(list,firstHeader,clickable){
+  const head=["","LOTS","SOLD #","COST","SOLD","PROFIT","MARGIN","AVG SOLD","BIDS"];
+  $("#brkTbl thead").innerHTML="<tr>"+head.map((h,i)=>
+    `<th${i?' style="text-align:right"':""}>${h||esc(firstHeader)}</th>`).join("")+"</tr>";
+  $("#brkTbl tbody").innerHTML=list.map(o=>`<tr${clickable?` data-k="${esc(o.k)}" style="cursor:pointer"`:""}>
       <td class="wrap">${esc(o.k)}</td>
       <td class="num">${fmt(o.lots)}</td>
       <td class="num">${fmt(o.soldCount)}</td>
@@ -716,19 +736,51 @@ async function renderBreak(){
       <td class="num ${o.margin>=0?"pos":"neg"}">${pct(o.margin)}</td>
       <td class="num">${usd(o.avg)}</td>
       <td class="num">${fmt(o.bids)}</td></tr>`).join("");
-    const T=list.reduce((a,o)=>({lots:a.lots+o.lots,soldCount:a.soldCount+o.soldCount,cost:a.cost+o.cost,
-      sold:a.sold+o.sold,costOfSold:a.costOfSold+o.costOfSold,bids:a.bids+o.bids}),
-      {lots:0,soldCount:0,cost:0,sold:0,costOfSold:0,bids:0});
-    const tp=T.sold-T.costOfSold, tm=T.sold?(tp/T.sold)*100:null;
-    $("#brkTbl tfoot").innerHTML=`<tr style="border-top:2px solid var(--line)">
-      <td><b>TOTAL</b></td><td class="num"><b>${fmt(T.lots)}</b></td><td class="num"><b>${fmt(T.soldCount)}</b></td>
-      <td class="num"><b>${usd(T.cost)}</b></td><td class="num"><b>${usd(T.sold)}</b></td>
-      <td class="num ${tp>=0?"pos":"neg"}"><b>${usd(tp)}</b></td>
-      <td class="num ${tm>=0?"pos":"neg"}"><b>${pct(tm)}</b></td>
-      <td class="num">—</td><td class="num"><b>${fmt(T.bids)}</b></td></tr>`;
-    $("#brkNote").textContent=`${fmt(rows.length)} lots grouped into ${fmt(list.length)} ${col.replace(/_/g," ").toLowerCase()} values. Filters from the COMPLETED AUCTIONS tab apply.`;
+  const T=list.reduce((a,o)=>({lots:a.lots+o.lots,soldCount:a.soldCount+o.soldCount,cost:a.cost+o.cost,
+    sold:a.sold+o.sold,costOfSold:a.costOfSold+o.costOfSold,bids:a.bids+o.bids}),
+    {lots:0,soldCount:0,cost:0,sold:0,costOfSold:0,bids:0});
+  const tp=T.sold-T.costOfSold, tm=T.sold?(tp/T.sold)*100:null;
+  $("#brkTbl tfoot").innerHTML=`<tr style="border-top:2px solid var(--line)">
+    <td><b>TOTAL</b></td><td class="num"><b>${fmt(T.lots)}</b></td><td class="num"><b>${fmt(T.soldCount)}</b></td>
+    <td class="num"><b>${usd(T.cost)}</b></td><td class="num"><b>${usd(T.sold)}</b></td>
+    <td class="num ${tp>=0?"pos":"neg"}"><b>${usd(tp)}</b></td>
+    <td class="num ${tm>=0?"pos":"neg"}"><b>${pct(tm)}</b></td>
+    <td class="num">&mdash;</td><td class="num"><b>${fmt(T.bids)}</b></td></tr>`;
+  if(clickable){
+    $$("#brkTbl tbody tr[data-k]").forEach(tr=>tr.onclick=()=>{ BRK.value=tr.dataset.k; renderBreak(); });
+  }
+}
+
+async function renderBreak(){
+  const col=$("#grpBy").value;
+  const label=col.replace(/_/g," ");
+  $("#msg").innerHTML='<div class="bar"><i></i></div>';
+  try{
+    const rows=await allRows();
+    $("#msg").innerHTML="";
+    const keyOf=r=>r[col]==null||r[col]===""?"\u2014":String(r[col]);
+
+    if(BRK.value===null){
+      $("#brkCrumb").classList.add("hidden");
+      const list=brkAgg(rows,keyOf).sort((a,b)=>b.sold-a.sold);
+      brkTable(list,label,true);
+      $("#brkNote").textContent=`${fmt(rows.length)} lots grouped into ${fmt(list.length)} ${label.toLowerCase()} values. Click a row to break it down by estimated value. Filters from the COMPLETED AUCTIONS tab apply.`;
+      return;
+    }
+
+    /* drilled in: the same totals, bucketed by estimated value */
+    const subset=rows.filter(r=>keyOf(r)===BRK.value);
+    $("#brkCrumb").classList.remove("hidden");
+    $("#brkCrumbTitle").innerHTML=`${esc(BRK.value)} <span class="q">${label} &middot; ${fmt(subset.length)} LOTS</span>`;
+    const byBand=brkAgg(subset,r=>bandOf(r.ESTIMATED_VALUE));
+    const order=EV_BANDS.map(b=>b.k).concat("(no est value)");
+    const list=order.map(k=>byBand.find(o=>o.k===k)
+      ||{k,lots:0,cost:0,sold:0,soldCount:0,costOfSold:0,bids:0,profit:0,margin:null,avg:0})
+      .filter(o=>o.lots>0||o.k!=="(no est value)");
+    brkTable(list,"EST VALUE",false);
+    $("#brkNote").textContent=`${fmt(subset.length)} ${BRK.value} lots by estimated value. Bands are the card's estimated value, not what it sold for.`;
   }catch(e){
-    $("#msg").innerHTML='<div class="err">Could not build the breakdown — '+esc(e.message)+'</div>';
+    $("#msg").innerHTML='<div class="err">Could not build the breakdown &mdash; '+esc(e.message)+'</div>';
   }
 }
 
@@ -1159,7 +1211,8 @@ $("#reload").onclick=async()=>{
   }
 };
 $("#csv").onclick=exportXlsx;
-$("#grpBy").onchange=renderBreak;
+$("#grpBy").onchange=()=>{ BRK.value=null; renderBreak(); };
+$("#brkBack").onclick=()=>{ BRK.value=null; renderBreak(); };
 ["#fPlayer","#fSet","#fPo"].forEach(s=>$(s).addEventListener("keydown",e=>{
   if(e.key==="Enter"){ S.page=1; S.all=null; load(); }
 }));
