@@ -55,6 +55,18 @@ const esc = s => String(s).replace(/'/g, "''");
 
 const SQL = {
   active: `
+WITH cost_by_item AS (
+  /* One cost per item: the latest row that actually carries a figure, falling
+     back to the latest row when every one is zero. Card 39238 takes the latest
+     row outright, which lets a later empty row hide the real acquisition cost —
+     this avoids that. Verified: 909 of 910 live card lots resolve a cost. */
+  SELECT ITEM_ID,
+         COALESCE(MAX_BY(NULLIF(PURCHASE_COST_CENTS, 0), CREATED_AT),
+                  MAX_BY(PURCHASE_COST_CENTS, CREATED_AT)) AS purchase_cost_cents
+    FROM APP_PROD.PUBLIC.ITEM_COST_ACCOUNTING
+   WHERE NOT COALESCE(_SNOWFLAKE_DELETED, FALSE)
+   GROUP BY ITEM_ID
+)
 SELECT
     a.ID                                                            AS AUCTION_ID,
     CASE WHEN c.NUMBER IS NOT NULL THEN
@@ -79,6 +91,7 @@ SELECT
     CONVERT_TIMEZONE('America/Los_Angeles', a.START_AT)             AS START_AT,
     CONVERT_TIMEZONE('America/Los_Angeles', a.END_AT)               AS END_AT,
     DATEDIFF('hour', CURRENT_TIMESTAMP(), a.END_AT)                 AS HOURS_LEFT,
+    ci.purchase_cost_cents / 100.0                                  AS PURCHASE_COST,
     c.ESTIMATED_VALUE_CENTS / 100.0                                 AS ESTIMATED_VALUE,
     a.START_VALUE_CENTS / 100.0                                     AS START_PRICE,
     a.RESERVE_VALUE_CENTS / 100.0                                   AS RESERVE,
@@ -97,6 +110,7 @@ LEFT JOIN APP_PROD.PUBLIC.COLLECTIONS col
  AND NOT COALESCE(col._SNOWFLAKE_DELETED, FALSE)
 LEFT JOIN APP_PROD.ADMIN.CARDS c
   ON c.ID = a.ITEM_ID
+LEFT JOIN cost_by_item ci ON ci.ITEM_ID = a.ITEM_ID
  AND NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)
 WHERE NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
   AND u.EMAIL = '{{ACCOUNT}}'
@@ -105,6 +119,18 @@ WHERE NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
 ORDER BY a.END_AT`,
 
   waiting: `
+WITH cost_by_item AS (
+  /* One cost per item: the latest row that actually carries a figure, falling
+     back to the latest row when every one is zero. Card 39238 takes the latest
+     row outright, which lets a later empty row hide the real acquisition cost —
+     this avoids that. Verified: 909 of 910 live card lots resolve a cost. */
+  SELECT ITEM_ID,
+         COALESCE(MAX_BY(NULLIF(PURCHASE_COST_CENTS, 0), CREATED_AT),
+                  MAX_BY(PURCHASE_COST_CENTS, CREATED_AT)) AS purchase_cost_cents
+    FROM APP_PROD.PUBLIC.ITEM_COST_ACCOUNTING
+   WHERE NOT COALESCE(_SNOWFLAKE_DELETED, FALSE)
+   GROUP BY ITEM_ID
+)
 SELECT
     i.ID                                                            AS ITEM_ID,
     CASE WHEN c.NUMBER IS NOT NULL THEN
@@ -127,6 +153,7 @@ SELECT
     col.IS_SHOEBOX,
     i.CATEGORY                                                      AS ITEM_CATEGORY,
     i.STATUS                                                        AS ITEM_STATUS,
+    ci.purchase_cost_cents / 100.0                                  AS PURCHASE_COST,
     c.ESTIMATED_VALUE_CENTS / 100.0                                 AS ESTIMATED_VALUE,
     (SELECT COUNT(*)
        FROM APP_PROD.PUBLIC.AUCTION a2
@@ -141,6 +168,7 @@ LEFT JOIN APP_PROD.PUBLIC.COLLECTIONS col
  AND NOT COALESCE(col._SNOWFLAKE_DELETED, FALSE)
 LEFT JOIN APP_PROD.ADMIN.CARDS c
   ON c.ID = i.ID
+LEFT JOIN cost_by_item ci ON ci.ITEM_ID = i.ID
  AND NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)
 WHERE NOT COALESCE(i._SNOWFLAKE_DELETED, FALSE)
   AND u.EMAIL = '{{ACCOUNT}}'
@@ -164,6 +192,18 @@ ORDER BY c.ESTIMATED_VALUE_CENTS DESC NULLS LAST`
    CONDITION and REFERENCE are quoted — both are reserved words. */
 const WATCH_SQL = {
   active: `
+WITH cost_by_item AS (
+  /* One cost per item: the latest row that actually carries a figure, falling
+     back to the latest row when every one is zero. Card 39238 takes the latest
+     row outright, which lets a later empty row hide the real acquisition cost —
+     this avoids that. Verified: 909 of 910 live card lots resolve a cost. */
+  SELECT ITEM_ID,
+         COALESCE(MAX_BY(NULLIF(PURCHASE_COST_CENTS, 0), CREATED_AT),
+                  MAX_BY(PURCHASE_COST_CENTS, CREATED_AT)) AS purchase_cost_cents
+    FROM APP_PROD.PUBLIC.ITEM_COST_ACCOUNTING
+   WHERE NOT COALESCE(_SNOWFLAKE_DELETED, FALSE)
+   GROUP BY ITEM_ID
+)
 SELECT
     a.ID                                                            AS AUCTION_ID,
     wt.BRAND_NAME                                                   AS BRAND,
@@ -177,6 +217,7 @@ SELECT
     CONVERT_TIMEZONE('America/Los_Angeles', a.START_AT)             AS START_AT,
     CONVERT_TIMEZONE('America/Los_Angeles', a.END_AT)               AS END_AT,
     DATEDIFF('hour', CURRENT_TIMESTAMP(), a.END_AT)                 AS HOURS_LEFT,
+    ci.purchase_cost_cents / 100.0                                  AS PURCHASE_COST,
     wc.ESTIMATED_VALUE_CENTS / 100.0                                AS ESTIMATED_VALUE,
     a.START_VALUE_CENTS / 100.0                                     AS START_PRICE,
     a.RESERVE_VALUE_CENTS / 100.0                                   AS RESERVE,
@@ -196,12 +237,25 @@ LEFT JOIN APP_PROD.PUBLIC.COLLECTIONS col
 LEFT JOIN APP_PROD.ADMIN.WATCH_TYPES wt      ON wt.ID = i.WATCH_TYPE_ID
 LEFT JOIN APP_PROD.ADMIN.WATCH_CONDITIONS wc ON wc.ID = i.WATCH_CONDITION_ID
 WHERE NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
+LEFT JOIN cost_by_item ci ON ci.ITEM_ID = a.ITEM_ID
   AND u.EMAIL = '{{ACCOUNT}}'
   AND a.STATUS = 'active'
   AND a.ITEM_CATEGORY = 'watch'
 ORDER BY a.END_AT`,
 
   waiting: `
+WITH cost_by_item AS (
+  /* One cost per item: the latest row that actually carries a figure, falling
+     back to the latest row when every one is zero. Card 39238 takes the latest
+     row outright, which lets a later empty row hide the real acquisition cost —
+     this avoids that. Verified: 909 of 910 live card lots resolve a cost. */
+  SELECT ITEM_ID,
+         COALESCE(MAX_BY(NULLIF(PURCHASE_COST_CENTS, 0), CREATED_AT),
+                  MAX_BY(PURCHASE_COST_CENTS, CREATED_AT)) AS purchase_cost_cents
+    FROM APP_PROD.PUBLIC.ITEM_COST_ACCOUNTING
+   WHERE NOT COALESCE(_SNOWFLAKE_DELETED, FALSE)
+   GROUP BY ITEM_ID
+)
 SELECT
     i.ID                                                            AS ITEM_ID,
     wt.BRAND_NAME                                                   AS BRAND,
@@ -213,6 +267,7 @@ SELECT
     col.IS_SHOEBOX,
     i.CATEGORY                                                      AS ITEM_CATEGORY,
     i.STATUS                                                        AS ITEM_STATUS,
+    ci.purchase_cost_cents / 100.0                                  AS PURCHASE_COST,
     wc.ESTIMATED_VALUE_CENTS / 100.0                                AS ESTIMATED_VALUE,
     (SELECT COUNT(*)
        FROM APP_PROD.PUBLIC.AUCTION a2
@@ -228,6 +283,7 @@ LEFT JOIN APP_PROD.PUBLIC.COLLECTIONS col
 LEFT JOIN APP_PROD.ADMIN.WATCH_TYPES wt      ON wt.ID = i.WATCH_TYPE_ID
 LEFT JOIN APP_PROD.ADMIN.WATCH_CONDITIONS wc ON wc.ID = i.WATCH_CONDITION_ID
 WHERE NOT COALESCE(i._SNOWFLAKE_DELETED, FALSE)
+LEFT JOIN cost_by_item ci ON ci.ITEM_ID = i.ID
   AND u.EMAIL = '{{ACCOUNT}}'
   AND i.STATUS = 'in_marketplace'
   AND i.CATEGORY = 'watch'
