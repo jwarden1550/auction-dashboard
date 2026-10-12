@@ -486,6 +486,7 @@ const COLS=[
   {k:"SET_NAME",     t:"SET",           kind:"wrap"},
   {k:"SPORT",        t:"SPORT"},
   {k:"GRADE",        t:"GRADE"},
+  {k:"PREMIER_BLOCK",t:"BLOCK",         kind:"block", nosort:true, always:true},
   {k:"SOLD_AT",      t:"SOLD",          kind:"date"},
   /* Ordered as the money moves: the three figures we know, then the three
      derived from them. Each derived column sits next to what it is made of —
@@ -536,6 +537,7 @@ async function load(){
     const b=await r.json();
     if(!b.ok) throw new Error(b.error||"the endpoint returned no data");
     S.rows=b.rows||[]; S.meta=b;
+    await premierBlocks();
     $("#msg").innerHTML="";
     fillFacets(b); renderKpis(b); renderTable(b);
   }catch(e){
@@ -589,10 +591,36 @@ const pubUrl=r=>{
   if(!slug) return "";
   return "https://arenaclub.com/cards/"+slug+"-8AC"+String(num).padStart(9,"0");
 };
+/* COMPLETED AUCTIONS reads Metabase card 39238, which does not expose the
+   premier block. It does return AUCTION_URL, which ends in the auction id, so
+   the block is joined here from /api/premier — a few hundred rows, fetched
+   once. Locally that endpoint does not exist (no serverless runtime), so the
+   column simply stays blank rather than erroring. */
+let PREMIER=null;
+async function premierBlocks(){
+  if(PREMIER) return PREMIER;
+  if(LOCAL){ PREMIER={}; return PREMIER; }
+  try{
+    const r=await fetch("/api/premier");
+    const b=await r.json();
+    PREMIER = b.ok ? (b.blocks||{}) : {};
+  }catch(_){ PREMIER={}; }
+  return PREMIER;
+}
+const auctionIdOf=r=>{
+  const m=String(r.AUCTION_URL||"").match(/auctions\/([0-9a-f-]{36})/i);
+  return m?m[1]:null;
+};
+
 function cell(row,c){
   const v=row[c.k];
   switch(c.kind){
     case "img": return v?`<td><img class="thumb" src="${esc(v)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'" onclick="window.open('${esc(v)}','_blank')"></td>`:`<td></td>`;
+    case "block":{
+      const id=auctionIdOf(row);
+      const name=id&&PREMIER?PREMIER[id]:null;
+      return `<td class="wrap">${name?esc(name):"<span style=\"opacity:.45\">standard</span>"}</td>`;
+    }
     case "viewcalc":{
       const u=pubUrl(row);
       return u?`<td><a class="alink" href="${esc(u)}" target="_blank" rel="noopener">VIEW ↗</a></td>`:`<td></td>`;
