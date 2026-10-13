@@ -562,6 +562,7 @@ async function load(){
     if(!b.ok) throw new Error(b.error||"the endpoint returned no data");
     S.rows=b.rows||[]; S.meta=b;
     await premierBlocks();
+    await costFixes(); applyCostFixes(S.rows);
     $("#msg").innerHTML="";
     fillFacets(b); renderKpis(b); renderTable(b);
   }catch(e){
@@ -615,6 +616,40 @@ const pubUrl=r=>{
   if(!slug) return "";
   return "https://arenaclub.com/cards/"+slug+"-8AC"+String(num).padStart(9,"0");
 };
+/* Card 39238 values a lot at its latest cost row even when that row is zero,
+   so a few lots arrive costing nothing and reporting a 100% margin. /api/costfix
+   returns the corrected cost for exactly those, and they are patched into the
+   rows on arrival — so every downstream reader (table, breakdown, export)
+   computes from the same cost the pipeline uses, rather than each applying its
+   own correction. */
+let COSTFIX=null;
+async function costFixes(){
+  if(COSTFIX) return COSTFIX;
+  if(LOCAL){ COSTFIX={}; return COSTFIX; }
+  try{
+    const r=await fetch("/api/costfix");
+    const b=await r.json();
+    COSTFIX = b.ok ? (b.costs||{}) : {};
+  }catch(_){ COSTFIX={}; }
+  return COSTFIX;
+}
+const cardIdOf=r=>{
+  const m=String(r.CARD_URL||"").match(/cards\/([0-9a-f-]{36})/i);
+  return m?m[1]:null;
+};
+function applyCostFixes(rows){
+  if(!COSTFIX) return rows;
+  rows.forEach(r=>{
+    const id=cardIdOf(r);
+    const fixed=id!=null?COSTFIX[id]:undefined;
+    if(fixed===undefined||fixed===null) return;
+    r.PURCHASE_COST=fixed;
+    r.MARGIN=numv(r.SOLD_PRICE)-fixed;   // the endpoint's MARGIN is profit in dollars
+    r.COST_CORRECTED=true;
+  });
+  return rows;
+}
+
 /* COMPLETED AUCTIONS reads Metabase card 39238, which does not expose the
    premier block. It does return AUCTION_URL, which ends in the auction id, so
    the block is joined here from /api/premier — a few hundred rows, fetched
@@ -734,6 +769,7 @@ async function allRows(){
     if(!b.ok) throw new Error(b.error||"no data");
     out.push(...(b.rows||[])); pages=b.pages||1; off+=1000;
   } while(out.length<1000*pages && off<1000*pages);
+  await costFixes(); applyCostFixes(out);
   S.all=out; S.allAt=key;
   return out;
 }
