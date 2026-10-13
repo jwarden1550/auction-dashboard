@@ -394,7 +394,7 @@ ORDER BY wc.ESTIMATED_VALUE_CENTS DESC NULLS LAST`
 const BY_CATEGORY = { card: SQL, watch: WATCH_SQL };
 
 const cache = {};
-const TTL_MS = 5 * 60 * 1000;
+const TTL_MS = 15 * 60 * 1000;
 
 const num = v => {
   const n = parseFloat(String(v == null ? '' : v).replace(/[$,\s]/g, ''));
@@ -414,11 +414,21 @@ const looksDate = v => {
   return /^\d{4}-\d{2}-\d{2}/.test(t);
 };
 
+const inflight = {};
 async function load(view, force, category) {
   // ?fresh=1 (the REFRESH button) skips the cache; everything else reuses it
   const key = `${category}:${view}`;
   const c = cache[key];
   if (!force && c && Date.now() - c.at < TTL_MS) return c;
+  // Each view walks Snowflake 2,000 rows at a time, so two requests landing
+  // on a cold instance together would run the whole walk twice. One walk.
+  if (!force && inflight[key]) return inflight[key];
+  inflight[key] = loadNow(view, force, category, key)
+    .finally(() => { delete inflight[key]; });
+  return inflight[key];
+}
+
+async function loadNow(view, force, category, key) {
 
   const base = BY_CATEGORY[category][view].replace('{{ACCOUNT}}', esc(ACCOUNT));
 
@@ -489,7 +499,7 @@ const SKIP = /url$|^id$|_id$/i;
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   const noStore = () => res.setHeader('Cache-Control', 'no-store, max-age=0');
-  res.setHeader('Cache-Control', 's-maxage=120, stale-while-revalidate=600');
+  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=86400');
 
   if (!HOST || !KEY) {
     noStore();

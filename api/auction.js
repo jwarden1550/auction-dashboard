@@ -23,7 +23,8 @@ const KEY = process.env.METABASE_API_KEY || '';
 const CARD_ID = Number(process.env.AUCTION_QUESTION || 39238);   // Card Auction
 
 const cache = { at: 0, rows: null, cols: null };
-const TTL_MS = 10 * 60 * 1000;
+let inflight = null;
+const TTL_MS = 30 * 60 * 1000;
 
 const num = v => {
   const n = parseFloat(String(v == null ? '' : v).replace(/[$,\s]/g, ''));
@@ -89,21 +90,28 @@ const SKIP = /url$|^id$|_id$/i;
 async function load(force) {
   // ?fresh=1 (the REFRESH button) skips the cache; everything else reuses it
   if (!force && cache.rows && Date.now() - cache.at < TTL_MS) return cache;
+  // The question is all 11,811 rows and Metabase has taken half a minute to
+  // hand them over. Two requests arriving at a cold instance would each start
+  // that, and wait twice as long for it; they share the one now.
+  if (!force && inflight) return inflight;
 
-  const res = await fetch(`${HOST}/api/card/${CARD_ID}/query/json`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': KEY }
-  });
-  const body = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(`question ${CARD_ID}: HTTP ${res.status}`);
-  if (!Array.isArray(body)) {
-    throw new Error(`question ${CARD_ID}: ${body && body.error ? String(body.error).slice(0, 200) : 'unexpected response'}`);
-  }
+  inflight = (async () => {
+    const res = await fetch(`${HOST}/api/card/${CARD_ID}/query/json`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': KEY }
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(`question ${CARD_ID}: HTTP ${res.status}`);
+    if (!Array.isArray(body)) {
+      throw new Error(`question ${CARD_ID}: ${body && body.error ? String(body.error).slice(0, 200) : 'unexpected response'}`);
+    }
 
-  cache.rows = body;
-  cache.cols = body.length ? Object.keys(body[0]) : [];
-  cache.at = Date.now();
-  return cache;
+    cache.rows = body;
+    cache.cols = body.length ? Object.keys(body[0]) : [];
+    cache.at = Date.now();
+    return cache;
+  })();
+  try { return await inflight; } finally { inflight = null; }
 }
 
 const looksDate = v => {
@@ -140,7 +148,11 @@ function numericCols(rows, cols) {
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   const noStore = () => res.setHeader('Cache-Control', 'no-store, max-age=0');
-  res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=900');
+  // s-maxage decides when the edge goes and asks again; stale-while-revalidate
+  // decides how long it keeps answering from the copy it has while it does.
+  // Long, because the alternative is a reader waiting out the Metabase fetch,
+  // and REFRESH is there for anyone who wants it now.
+  res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=86400');
 
   if (!HOST || !KEY) {
     noStore();

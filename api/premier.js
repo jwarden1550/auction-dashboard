@@ -69,7 +69,7 @@ async function load(force) {
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=900');
+  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=86400');
   if (!HOST || !KEY) {
     res.setHeader('Cache-Control', 'no-store, max-age=0');
     return res.status(200).json({ ok: false, error: 'METABASE_HOST / METABASE_API_KEY not set' });
