@@ -391,6 +391,23 @@ tr:hover .polink{border-bottom-color:var(--green)}
 .bar i{display:block;height:100%;width:30%;background:var(--green);animation:sl 1.1s infinite ease-in-out}
 @keyframes sl{0%{transform:translateX(-100%)}100%{transform:translateX(340%)}}
 .err{border:1px solid var(--red-dim);background:#1a0c0c;color:var(--red);padding:11px 13px;font-size:12.5px;margin-top:14px}
+
+/* ---------- loading, said out loud ----------
+   #msg sits below every tab's content, so a bar drawn into it was off the
+   bottom of the screen on the one occasion anybody wanted to see it. This
+   rides above the page instead — along the bottom, where it covers neither
+   the title nor the tabs. */
+.loading{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:300;
+  width:min(440px,92vw);background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;padding:11px 14px 13px;box-shadow:0 16px 44px rgba(0,0,0,.65)}
+.loading .lhead{display:flex;justify-content:space-between;align-items:baseline;gap:14px;
+  font-size:11.5px;letter-spacing:1.1px;color:var(--muted);margin-bottom:9px}
+.loading .lwhat{color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.loading .lleft{flex:0 0 auto;color:var(--green);font-variant-numeric:tabular-nums}
+.loading .lleft.over{color:var(--gold)}
+.ltrack{height:4px;background:var(--line);border-radius:3px;overflow:hidden}
+.ltrack i{display:block;height:100%;width:30%;background:var(--green);animation:sl 1.1s infinite ease-in-out}
+.ltrack u{display:block;height:100%;background:var(--green);transition:width .3s linear}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -1032,6 +1049,69 @@ function syncFilterUI(scope,btnId,chipId,onApply){
   }
 }
 
+/* ---------- loading, with an estimate from experience ----------
+   An honest estimate can only come from how long this has taken before, so
+   every finished load is timed and kept. The median of the last five is what
+   the countdown runs on; before there is any history it says so rather than
+   inventing a number, and once a load runs past its estimate it stops
+   counting down and admits it. */
+const LOADMS_KEY="auctiondash.loadms";
+const loadStats=()=>{ try{ return JSON.parse(localStorage.getItem(LOADMS_KEY))||{}; }catch(_){ return {}; } };
+function recordLoad(key,ms){
+  try{
+    const all=loadStats();
+    all[key]=(all[key]||[]).concat(Math.round(ms)).slice(-5);
+    localStorage.setItem(LOADMS_KEY,JSON.stringify(all));
+  }catch(_){}
+}
+function estimateFor(key){
+  const list=loadStats()[key]||[];
+  if(!list.length) return null;
+  const sorted=[...list].sort((a,b)=>a-b);
+  return sorted[Math.floor(sorted.length/2)];
+}
+const secs=ms=>Math.max(1,Math.round(ms/1000));
+const firstEver=key=>!estimateFor(key);
+
+let LOADBOX=null;
+function startLoad(key,label){
+  endLoad(null,false);                       // only ever one on screen
+  const box=document.createElement("div");
+  box.className="loading";
+  document.body.appendChild(box);
+  const job={key,label,note:label,est:estimateFor(key),at:Date.now(),box,timer:null};
+  job.draw=()=>{
+    const ms=Date.now()-job.at;
+    let right, bar;
+    if(!job.est){
+      right = ms>1200 ? secs(ms)+"s" : "";
+      bar = '<i></i>';
+    }else if(ms<job.est){
+      right = "about "+secs(job.est-ms)+"s left";
+      bar = `<u style="width:${Math.min(97,(ms/job.est)*100).toFixed(1)}%"></u>`;
+    }else{
+      right = "longer than usual · "+secs(ms)+"s";
+      bar = '<i></i>';
+    }
+    job.box.innerHTML=`<div class="lhead"><span class="lwhat">${esc(job.note)}</span>`+
+      `<span class="lleft${job.est&&ms>=job.est?" over":""}">${esc(right)}</span></div>`+
+      `<div class="ltrack">${bar}</div>`;
+  };
+  job.say=t=>{ job.note=t; job.draw(); };
+  job.draw();
+  job.timer=setInterval(job.draw,250);
+  LOADBOX=job;
+  return job;
+}
+function endLoad(job,ok){
+  const j = job || LOADBOX;
+  if(!j) return;
+  clearInterval(j.timer);
+  if(ok!==false) recordLoad(j.key, Date.now()-j.at);
+  if(j.box&&j.box.parentNode) j.box.remove();
+  if(LOADBOX===j) LOADBOX=null;
+}
+
 /* ---------- loading the book ---------- */
 /* REFRESH was firing a request but getting the same snapshot back: the
    function caches for minutes and the CDN in front of it longer, so a plain
@@ -1051,7 +1131,6 @@ const freshen=q=>{ if(FORCE_FRESH){ q.set("fresh","1"); q.set("_",String(Date.no
    and the first goes on its own so the two behind it meet a warm cache
    instead of racing it. */
 const BOOKPAGE=4000;
-const bar=note=>'<div class="bar"><i></i></div>'+(note?`<p class="note">${esc(note)}</p>`:"");
 /* Every page of an endpoint, merged. The first request says how many there
    are; the rest go out together rather than one after another. */
 async function bookPages(url, extra){
@@ -1069,11 +1148,11 @@ async function bookPages(url, extra){
   const first=await get(0,false);
   const pages=Math.max(1,first.pages||1);
   let done=1;
-  $("#msg").innerHTML=bar(pages>1?`reading the whole book — ${fmt(first.total||0)} lots, ${pages} pages`:"");
+  if(LOADBOX&&pages>1) LOADBOX.say(`Reading the whole book — ${fmt(first.total||0)} lots, page 1 of ${pages}`);
   const rest=await Promise.all(Array.from({length:pages-1},(_,i)=>
     get((i+1)*BOOKPAGE,true).then(b=>{
       done++;
-      $("#msg").innerHTML=bar(`reading the whole book — page ${done} of ${pages}`);
+      if(LOADBOX) LOADBOX.say(`Reading the whole book — page ${done} of ${pages}`);
       return b;
     })));
   const rows=(first.rows||[]).slice();
@@ -1099,12 +1178,17 @@ async function ensureBook(){
 }
 
 async function load(){
-  $("#msg").innerHTML=bar();
+  if(S.book){ applyLots(); return; }          // nothing to wait for
+  const wantBook = countRules(rulesFor("lots"));
+  const key = wantBook ? "lots:book" : "lots:page";
+  const job = startLoad(key, wantBook ? "Reading the whole book"
+    : (firstEver(key) ? "Loading auctions — the first one can take a while" : "Loading auctions"));
   try{
-    if(countRules(rulesFor("lots"))) await ensureBook();
+    if(wantBook) await ensureBook();
     if(S.book) applyLots(); else await loadPage();
-    $("#msg").innerHTML="";
+    endLoad(job);
   }catch(e){
+    endLoad(job,false);
     $("#msg").innerHTML='<div class="err">Could not load auctions — '+esc(e.message)+'</div>';
   }
 }
@@ -1500,10 +1584,10 @@ function brkTable(list,firstHeader,clickable){
 async function renderBreak(){
   const col=$("#grpBy").value;
   const label=col.replace(/_/g," ");
-  $("#msg").innerHTML='<div class="bar"><i></i></div>';
+  const job=startLoad("breakdown","Grouping the book");
   try{
     const rows=await allRows();
-    $("#msg").innerHTML="";
+    endLoad(job);
     const keyOf=r=>r[col]==null||r[col]===""?"\u2014":String(r[col]);
 
     if(BRK.value===null){
@@ -1526,6 +1610,7 @@ async function renderBreak(){
     brkTable(list,"EST VALUE",false);
     $("#brkNote").textContent=`${fmt(subset.length)} ${BRK.value} lots by estimated value. Bands are the card's estimated value, not what it sold for.`;
   }catch(e){
+    endLoad(job,false);
     $("#msg").innerHTML='<div class="err">Could not build the breakdown &mdash; '+esc(e.message)+'</div>';
   }
 }
@@ -1545,11 +1630,11 @@ async function pAllRows(){
    file opens in Sheets already typed. */
 const DATE_FIELDS=["SOLD_AT","START_AT","END_AT"];
 async function exportXlsx(){
-  $("#msg").innerHTML='<div class="bar"><i></i></div>';
+  const job=startLoad("export","Building the spreadsheet");
   try{
     const onPipe = currentPage==="pipe";
     const rows = onPipe ? await pAllRows() : await allRows();
-    $("#msg").innerHTML="";
+    endLoad(job);
     if(!rows.length){ $("#msg").innerHTML='<div class="err">Nothing to export with these filters.</div>'; return; }
 
     const typed = rows.map(r=>{
@@ -1573,6 +1658,7 @@ async function exportXlsx(){
     const stamp = new Date().toISOString().slice(0,10);
     XLSX.writeFile(wb, `arena-${onPipe?P.cat+"-"+P.view:"completed"}-${stamp}.xlsx`);
   }catch(e){
+    endLoad(job,false);
     $("#msg").innerHTML='<div class="err">Export failed — '+esc(e.message)+'</div>';
   }
 }
@@ -1753,12 +1839,18 @@ async function loadPipe(){
     $("#msg").innerHTML='<div class="err">The pipeline needs its own serverless function, which a static local server can\u2019t run — open the deployed site to use this tab.</div>';
     return;
   }
-  $("#msg").innerHTML=bar();
+  if(P.books[pKey()]){ applyPipe(); return; }
+  const wantBook = countRules(rulesFor(pScope()));
+  const what=(P.cat==="premier"?"premier":P.cat==="watch"?"watches":"cards")+
+             (P.view==="active"?" in auction":" waiting");
+  const key = (wantBook?"pipe:book:":"pipe:page:")+pKey();
+  const job = startLoad(key,(wantBook?"Reading all ":"Loading ")+what);
   try{
-    if(countRules(rulesFor(pScope()))) await pBook();
+    if(wantBook) await pBook();
     if(P.books[pKey()]) applyPipe(); else await pLoadPage();
-    $("#msg").innerHTML="";
+    endLoad(job);
   }catch(e){
+    endLoad(job,false);
     $("#msg").innerHTML='<div class="err">Could not load the pipeline — '+esc(e.message)+'</div>';
   }
 }
@@ -1905,10 +1997,9 @@ $$(".pill-btn[data-pv]").forEach(btn=>btn.onclick=()=>{
 });
 $("#pipeFilt").onclick=async e=>{
   e.stopPropagation();
-  $("#msg").innerHTML=bar();
-  try{ await pBook(); }
-  catch(err){ $("#msg").innerHTML='<div class="err">Could not read the pipeline — '+esc(err.message)+'</div>'; return; }
-  $("#msg").innerHTML="";
+  const job=startLoad("pipe:book:"+pKey(),"Reading the whole pipeline to filter it");
+  try{ await pBook(); endLoad(job); }
+  catch(err){ endLoad(job,false); $("#msg").innerHTML='<div class="err">Could not read the pipeline — '+esc(err.message)+'</div>'; return; }
   openFilterPanel(pScope(), (P.cat==="card"?"CARDS":"WATCHES")+" "+(P.view==="active"?"IN AUCTION":"WAITING"),
                   ()=>{ P.page=1; applyPipe(); });
 };
@@ -1928,16 +2019,17 @@ async function loadBlocks(){
     $("#msg").innerHTML='<div class="err">Blocks need their own serverless function, which a static local server can’t run — open the deployed site.</div>';
     return;
   }
-  $("#msg").innerHTML='<div class="bar"><i></i></div>';
+  const job=startLoad("blocks","Loading auction blocks");
   try{
     const url = BLK.block ? `${BAPI}?view=lots&block=${encodeURIComponent(BLK.block)}` : BAPI;
     const r=await fetch(url + (FORCE_FRESH?`&fresh=1&_=${Date.now()}`:""));
     const b=await r.json();
     if(!b.ok) throw new Error(b.error||"no data");
-    $("#msg").innerHTML="";
+    endLoad(job);
     $("#mGen").textContent=stamp(b.generated);
     BLK.block ? renderBlockLots(b) : renderBlockList(b);
   }catch(e){
+    endLoad(job,false);
     $("#msg").innerHTML='<div class="err">Could not load blocks — '+esc(e.message)+'</div>';
   }
 }
@@ -2199,10 +2291,9 @@ $("#lotFilt").onclick=async e=>{
   e.stopPropagation();
   /* the whole book first: a rule that only saw the hundred rows on screen
      would be answering a different question than the one it asks */
-  $("#msg").innerHTML=bar();
-  try{ await ensureBook(); }
-  catch(err){ $("#msg").innerHTML='<div class="err">Could not read the book — '+esc(err.message)+'</div>'; return; }
-  $("#msg").innerHTML="";
+  const job=startLoad("lots:book","Reading the whole book to filter it");
+  try{ await ensureBook(); endLoad(job); }
+  catch(err){ endLoad(job,false); $("#msg").innerHTML='<div class="err">Could not read the book — '+esc(err.message)+'</div>'; return; }
   openFilterPanel("lots","COMPLETED AUCTIONS",()=>{
     S.page=1; load();
     if(currentPage==="break") renderBreak();
