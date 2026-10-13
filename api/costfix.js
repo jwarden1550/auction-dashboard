@@ -29,7 +29,6 @@ const TTL_MS = 10 * 60 * 1000;
 
 const SQL = `
 WITH mine AS (
-  /* every item this account has had at auction */
   SELECT DISTINCT a.ITEM_ID
     FROM APP_PROD.PUBLIC.AUCTION a
     JOIN APP_PROD.PUBLIC.USERS u
@@ -38,23 +37,23 @@ WITH mine AS (
    WHERE NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
      AND u.EMAIL = '{{ACCOUNT}}'
 ),
-both AS (
-  SELECT
-      ica.ITEM_ID,
-      /* what card 39238 does: latest row, zero or not */
-      MAX_BY(ica.PURCHASE_COST_CENTS, ica.CREATED_AT)                     AS latest_cents,
-      /* what it should do: latest row that carries a figure */
-      MAX_BY(NULLIF(ica.PURCHASE_COST_CENTS, 0), ica.CREATED_AT)          AS latest_nonzero_cents
-    FROM APP_PROD.PUBLIC.ITEM_COST_ACCOUNTING ica
-    JOIN mine ON mine.ITEM_ID = ica.ITEM_ID
-   WHERE NOT COALESCE(ica._SNOWFLAKE_DELETED, FALSE)
-   GROUP BY ica.ITEM_ID
+ica AS (
+  SELECT x.ITEM_ID, x.PURCHASE_COST_CENTS AS C, x.CREATED_AT
+    FROM APP_PROD.PUBLIC.ITEM_COST_ACCOUNTING x
+    JOIN mine ON mine.ITEM_ID = x.ITEM_ID
+   WHERE NOT COALESCE(x._SNOWFLAKE_DELETED, FALSE)
 )
-SELECT ITEM_ID, latest_nonzero_cents / 100.0 AS CORRECTED_COST
-  FROM both
- WHERE COALESCE(latest_cents, 0) = 0
-   AND latest_nonzero_cents IS NOT NULL
-   AND latest_nonzero_cents <> 0`;
+/* Keep only the lots where the two rules disagree, and filter with HAVING on
+   the aggregates themselves. Computing the same thing in a CTE and filtering
+   in an outer SELECT returned nothing — this form is the one verified against
+   the three known items. */
+SELECT
+    ITEM_ID,
+    MAX_BY(NULLIF(C, 0), CREATED_AT) / 100.0 AS CORRECTED_COST
+  FROM ica
+ GROUP BY ITEM_ID
+HAVING COALESCE(MAX_BY(C, CREATED_AT), 0) = 0
+   AND MAX(C) > 0`;
 
 async function load(force) {
   if (!force && cache.costs && Date.now() - cache.at < TTL_MS) return cache;
