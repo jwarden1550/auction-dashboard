@@ -366,9 +366,13 @@ tr:hover .polink{border-bottom-color:var(--green)}
 .tscroll{overflow:auto;max-height:70vh;border:1px solid var(--line);background:var(--panel)}
 #lotTbl,#brkTbl,#pipeTbl,#blkTbl{width:100%;border-collapse:collapse;font-size:12.5px}
 #lotTbl th,#brkTbl th,#pipeTbl th,#blkTbl th{position:sticky;top:0;z-index:2;background:var(--panel-2);border-bottom:1px solid var(--line);
-  padding:9px 11px;text-align:left;font-size:10.5px;letter-spacing:1.3px;color:var(--muted);white-space:nowrap;cursor:pointer;user-select:none}
+  padding:9px 11px;text-align:center;font-size:10.5px;letter-spacing:1.3px;color:var(--muted);white-space:nowrap;cursor:pointer;user-select:none}
+/* The sort arrow is appended to the label, so centring the text alone would
+   shift the label left every time a column is sorted. The cell centres its
+   contents as a unit instead, and the arrow hangs off the end. */
+#lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar,#blkTbl th .ar{position:absolute;margin-left:4px}
 #lotTbl th:hover,#brkTbl th:hover,#pipeTbl th:hover{color:var(--green)}
-#lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar{color:var(--green);margin-left:5px}
+#lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar{color:var(--green)}
 #lotTbl td,#brkTbl td,#pipeTbl td,#blkTbl td{padding:8px 11px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
 #lotTbl tbody tr:hover,#brkTbl tbody tr:hover,#pipeTbl tbody tr:hover,#blkTbl tbody tr:hover{background:var(--panel-2)}
 #lotTbl td.num,#brkTbl td.num,#pipeTbl td.num,#blkTbl td.num{text-align:right;font-variant-numeric:tabular-nums}
@@ -1085,6 +1089,8 @@ async function bookPages(url, extra){
    request. */
 async function ensureBook(){
   if(S.book) return S.book;
+  /* the book exists to answer rules, and a rule can ask about any of the
+     attribute fields, so this one does wait for them */
   const [book]=await Promise.all([bookPages(API),premierBlocks(),costFixes(),cardAttrs()]);
   applyCostFixes(book.rows); applyCardAttrs(book.rows);
   S.book=book;
@@ -1111,16 +1117,32 @@ async function loadPage(){
   const r=await fetch(API+"?"+freshen(p).toString());
   const b=await r.json();
   if(!b.ok) throw new Error(b.error||"the endpoint returned no data");
-  /* card attributes used to come down only when one of their columns was on.
-     The filter offers every one of them, so they come with the rows now — a
-     field you can filter on must not be empty because of how the table
-     happens to be set up. */
-  await Promise.all([premierBlocks(),costFixes(),cardAttrs()]);
-  applyCostFixes(b.rows); applyCardAttrs(b.rows);
+  /* Cost corrections and the block names are small and change what the money
+     columns say, so the table waits for them. Card attributes are 1.7 MB and
+     have taken 19 seconds — the table used to sit behind that before drawing
+     a single row. It draws first now and they land into it. */
+  await Promise.all([premierBlocks(),costFixes()]);
+  applyCostFixes(b.rows);
+  if(CARDATTRS) applyCardAttrs(b.rows);
   S.rows=b.rows; S.meta=b; S.view=null;
   buildFields("lots",(b.columns||[]).concat(EXTRA_CARD_FIELDS),b.rows);
   syncFilterUI("lots","#lotFilt","#lotChips",()=>{S.page=1;load();});
   renderKpis(b); renderTable(b);
+  fillInCardAttrs();
+}
+
+/* The attribute columns — year, grader, rookie, team, parallel, the rest —
+   arrive after the table is already up, so they are filled into what is on
+   screen rather than held in front of it. Redraws only if the page that
+   asked is still the page being looked at. */
+function fillInCardAttrs(){
+  if(CARDATTRS) return;
+  const was=S.meta;
+  cardAttrs().then(()=>{
+    if(S.meta!==was) return;          // moved on; that page fills its own
+    applyCardAttrs(S.rows);
+    renderTable(S.meta);
+  }).catch(()=>{});
 }
 
 /* filter, sort and page the book already in the browser */
