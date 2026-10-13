@@ -98,6 +98,8 @@ SELECT
     CONVERT_TIMEZONE('America/Los_Angeles', a.END_AT)               AS END_AT,
     DATEDIFF('hour', CURRENT_TIMESTAMP(), a.END_AT)                 AS HOURS_LEFT,
     ci.purchase_cost_cents / 100.0                                  AS PURCHASE_COST,
+    ev.LAST_COMP_AT                                                 AS LAST_COMPED,
+    DATEDIFF('day', ev.LAST_COMP_AT, CURRENT_DATE)                  AS COMP_AGE_DAYS,
     c.ESTIMATED_VALUE_CENTS / 100.0                                 AS ESTIMATED_VALUE,
     a.START_VALUE_CENTS / 100.0                                     AS START_PRICE,
     a.RESERVE_VALUE_CENTS / 100.0                                   AS RESERVE,
@@ -126,7 +128,16 @@ LEFT JOIN APP_PROD.PUBLIC.COLLECTIONS col
 LEFT JOIN APP_PROD.ADMIN.CARDS c
   ON c.ID = a.ITEM_ID
 LEFT JOIN cost_by_item ci ON ci.ITEM_ID = a.ITEM_ID
- AND NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)
+ AND NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)LEFT JOIN (
+  /* When the card was last comped. Same source card 39238 uses — the
+     estimate_value task — so the two tabs agree. cards.LAST_COMP_VALUE_CENTS
+     exists but is written for nothing, so the comp VALUE cannot be shown. */
+  SELECT CARD_ID, MAX(CREATED_AT::timestamp) AS LAST_COMP_AT
+    FROM APP_PROD.ADMIN.TASKS
+   WHERE SKILL_KIND = 'estimate_value'
+   GROUP BY CARD_ID
+) ev ON ev.CARD_ID = a.ITEM_ID
+
 WHERE NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
   AND u.EMAIL = '{{ACCOUNT}}'
   AND a.STATUS = 'active'
@@ -169,6 +180,8 @@ SELECT
     i.CATEGORY                                                      AS ITEM_CATEGORY,
     i.STATUS                                                        AS ITEM_STATUS,
     ci.purchase_cost_cents / 100.0                                  AS PURCHASE_COST,
+    ev.LAST_COMP_AT                                                 AS LAST_COMPED,
+    DATEDIFF('day', ev.LAST_COMP_AT, CURRENT_DATE)                  AS COMP_AGE_DAYS,
     c.ESTIMATED_VALUE_CENTS / 100.0                                 AS ESTIMATED_VALUE,
     (SELECT COUNT(*)
        FROM APP_PROD.PUBLIC.AUCTION a2
@@ -184,7 +197,16 @@ LEFT JOIN APP_PROD.PUBLIC.COLLECTIONS col
 LEFT JOIN APP_PROD.ADMIN.CARDS c
   ON c.ID = i.ID
 LEFT JOIN cost_by_item ci ON ci.ITEM_ID = i.ID
- AND NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)
+ AND NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)LEFT JOIN (
+  /* When the card was last comped. Same source card 39238 uses — the
+     estimate_value task — so the two tabs agree. cards.LAST_COMP_VALUE_CENTS
+     exists but is written for nothing, so the comp VALUE cannot be shown. */
+  SELECT CARD_ID, MAX(CREATED_AT::timestamp) AS LAST_COMP_AT
+    FROM APP_PROD.ADMIN.TASKS
+   WHERE SKILL_KIND = 'estimate_value'
+   GROUP BY CARD_ID
+) ev ON ev.CARD_ID = i.ID
+
 WHERE NOT COALESCE(i._SNOWFLAKE_DELETED, FALSE)
   AND u.EMAIL = '{{ACCOUNT}}'
   AND i.STATUS = 'in_marketplace'
