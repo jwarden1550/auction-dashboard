@@ -299,6 +299,22 @@ tr:hover .polink{border-bottom-color:var(--green)}
   background:none;font-family:var(--mono);font-size:10px}
 .fchip.clear:hover{opacity:1;color:var(--red);border-color:var(--red-dim)}
 
+/* ---------- column picker: drag to reorder ---------- */
+.colrow{position:relative;user-select:none}
+.colrow.dragging{opacity:.45;background:rgba(124,255,79,.07);border:1px dashed var(--green-dim)}
+.colrow .grip{color:var(--muted);opacity:.35;cursor:grab;font-size:13px;line-height:1;letter-spacing:-1px}
+.colrow:hover .grip{opacity:.8}
+.colrow .grip:active{cursor:grabbing}
+.cpick{display:flex;align-items:center;gap:9px;flex:1;min-width:0;cursor:pointer;margin:0}
+.cpick span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* kept visible rather than revealed on hover: on a list you are rearranging,
+   a control you have to go looking for is a control you do not know is there */
+.colrow .mv{display:flex;gap:2px;opacity:.4;transition:opacity .12s}
+.colrow:hover .mv,.colrow:focus-within .mv{opacity:1}
+.colrow .mv button{background:none;border:1px solid var(--line);color:var(--muted);
+  font-family:var(--mono);font-size:10px;line-height:1;padding:3px 5px;border-radius:4px;cursor:pointer}
+.colrow .mv button:hover{color:var(--green);border-color:var(--green-dim)}
+
 .fpanel{position:fixed;left:50%;top:8vh;transform:translateX(-50%);width:min(880px,94vw);
   max-height:82vh;overflow:auto;background:var(--panel);border:1px solid var(--line);
   border-radius:10px;padding:16px 18px 14px;z-index:200;box-shadow:0 26px 70px rgba(0,0,0,.7)}
@@ -1334,7 +1350,9 @@ function renderTable(b){
   const avail=b.columns||[];
   const defs=COLS.filter(c=>c.always||!b.columns||avail.includes(c.k)||c.k==="");
   const cols=visibleCols("completed",defs,avail.concat(EXTRA_CARD_FIELDS));
-  const stickKey=(cols.find(c=>c.kind==="wrap")||{}).k;
+  /* pinning a column only reads as pinning while it is at the left edge —
+     dragged into the middle it would slide over its neighbours instead */
+  const stickKey=(cols.slice(0,2).find(c=>c.kind==="wrap")||{}).k;
   $("#lotTbl thead").innerHTML="<tr>"+cols.map(c=>{
     const on=S.sort===c.k;
     const cls=c.k===stickKey?' class="stick"':"";
@@ -1790,7 +1808,9 @@ function pTable(b){
   const avail=b.columns||[];
   const defs=PCOLS[P.cat][P.view].filter(c=>c.always||!b.columns||avail.includes(c.k));
   const cols=visibleCols("pipe:"+P.cat+":"+P.view,defs,avail);
-  const stickKey=(cols.find(c=>c.kind==="wrap")||{}).k;
+  /* pinning a column only reads as pinning while it is at the left edge —
+     dragged into the middle it would slide over its neighbours instead */
+  const stickKey=(cols.slice(0,2).find(c=>c.kind==="wrap")||{}).k;
   $("#pipeTbl thead").innerHTML="<tr>"+cols.map(c=>{
     const on=P.sort===c.k;
     const cls=c.k===stickKey?' class="stick"':"";
@@ -1964,6 +1984,16 @@ function colPref(key){
 function setColPref(key,list){
   try{ localStorage.setItem(COLPREF_KEY(key), JSON.stringify(list)); }catch(_){}
 }
+/* A choice made before columns could be dragged carries no order of its own,
+   so it still gets the derived one. Once a table has been arranged by hand
+   this flag says so, and the saved list is taken literally. */
+const COLORD_KEY = k => "colorder:" + k;
+function colOrdered(key){
+  try{ return localStorage.getItem(COLORD_KEY(key))==="1"; }catch(_){ return false; }
+}
+function setColOrdered(key,on){
+  try{ on ? localStorage.setItem(COLORD_KEY(key),"1") : localStorage.removeItem(COLORD_KEY(key)); }catch(_){}
+}
 /* readable label for a column the picker offers but no table defines */
 const niceName = k => k.replace(/_/g," ").replace(/\bAC NUMBER\b/,"AC #")
   .replace(/\bCARD NUMBER\b/,"CARD #").replace(/\bIS /,"");
@@ -1987,7 +2017,7 @@ function visibleCols(key, defs, available){
   const picked=saved
     .filter(k=>byKey[k] || (available||[]).includes(k))
     .map(k=>byKey[k] || {k, t:niceName(k)});
-  return orderCols(picked);
+  return colOrdered(key) ? picked : orderCols(picked);
 }
 
 function openColumnPicker(key, defs, available, onApply){
@@ -1996,23 +2026,70 @@ function openColumnPicker(key, defs, available, onApply){
   /* defaults first, then anything else the endpoint returns */
   const extras=(available||[]).filter(k=>!defKeys.includes(k) && !/^(PUBLIC_URL|ADMIN_URL|CARD_URL|AUCTION_URL|FRONT_SLAB_PICTURE_URL|AUCTION_ID|ITEM_ID|IS_SHOEBOX)$/.test(k));
   const all=defKeys.concat(extras.filter(k=>!defKeys.includes(k)));
+  /* the list reads top to bottom the way the table reads left to right, so
+     what you drag here is what moves there */
+  const saved=colPref(key)||[];
+  const order=saved.filter(k=>all.includes(k)).concat(all.filter(k=>!saved.includes(k)));
+  const labelOf=k=>((defs.find(c=>c.k===k)||{}).t)||niceName(k)||k;
+  let moved=false;
 
   const wrap=document.createElement("div");
   /* deliberately NOT .mselpanel.open: the document-level handler that dismisses
      filter dropdowns strips .open from every panel, and the opening click
      bubbles up to it. Own class, explicit display. */
   wrap.className="mselpanel colpick";
-  wrap.style.cssText="display:block;position:fixed;left:50%;top:12vh;transform:translateX(-50%);width:340px;max-height:72vh;overflow:auto;z-index:200";
-  wrap.innerHTML=`<div style="letter-spacing:1.5px;font-size:11px;color:var(--muted);margin-bottom:8px">CHOOSE COLUMNS</div>
-    <div class="mselopts" style="max-height:52vh">${all.map(k=>{
-      const label=(defs.find(c=>c.k===k)||{}).t || niceName(k);
-      return `<label class="mselopt"><input type="checkbox" value="${esc(k)}" ${shown.has(k)?"checked":""}>
-        <span>${esc(label||k)}</span></label>`;
-    }).join("")}</div>
+  wrap.style.cssText="display:block;position:fixed;left:50%;top:12vh;transform:translateX(-50%);width:min(408px,94vw);max-height:76vh;overflow:auto;z-index:200";
+  wrap.innerHTML=`<div style="letter-spacing:1.5px;font-size:11px;color:var(--muted);margin-bottom:4px">CHOOSE COLUMNS</div>
+    <p class="note" style="margin:0 0 8px">Tick what to show. Drag a row, or use ↑ ↓, to set the order.</p>
+    <div class="mselopts colsort" style="max-height:52vh">${order.map(k=>
+      `<div class="mselopt colrow" draggable="true" data-k="${esc(k)}">
+        <span class="grip" title="drag to reorder">⠿</span>
+        <label class="cpick" title="${esc(labelOf(k))}"><input type="checkbox" value="${esc(k)}" ${shown.has(k)?"checked":""}>
+          <span>${esc(labelOf(k))}</span></label>
+        <span class="mv"><button type="button" data-mv="up" title="move up">↑</button><button type="button" data-mv="down" title="move down">↓</button></span>
+      </div>`).join("")}</div>
     <div class="mselfoot">
       <button class="btn ghost" data-act="reset">RESET</button>
       <button class="btn" data-act="done">DONE</button>
     </div>`;
+  const list=wrap.querySelector(".colsort");
+
+  /* --- drag to reorder --- */
+  list.addEventListener("dragstart",e=>{
+    const row=e.target.closest(".colrow"); if(!row) return;
+    row.classList.add("dragging");
+    e.dataTransfer.effectAllowed="move";
+    /* Firefox will not start a drag without something on the clipboard */
+    try{ e.dataTransfer.setData("text/plain",row.dataset.k); }catch(_){}
+  });
+  list.addEventListener("dragend",()=>{
+    const row=list.querySelector(".dragging"); if(row) row.classList.remove("dragging");
+  });
+  list.addEventListener("dragover",e=>{
+    e.preventDefault();
+    const row=list.querySelector(".dragging"); if(!row) return;
+    const over=e.target.closest(".colrow");
+    if(!over||over===row) return;
+    const box=over.getBoundingClientRect();
+    /* past halfway down the row it goes below, so the gap follows the cursor */
+    const below=(e.clientY-box.top)>box.height/2;
+    list.insertBefore(row, below?over.nextSibling:over);
+    moved=true;
+  });
+  list.addEventListener("drop",e=>e.preventDefault());
+
+  /* --- and the same move without a mouse --- */
+  list.addEventListener("click",e=>{
+    const b=e.target.closest("[data-mv]"); if(!b) return;
+    e.preventDefault(); e.stopPropagation();
+    const row=b.closest(".colrow");
+    if(b.dataset.mv==="up"&&row.previousElementSibling) list.insertBefore(row,row.previousElementSibling);
+    else if(b.dataset.mv==="down"&&row.nextElementSibling) list.insertBefore(row.nextElementSibling,row);
+    else return;
+    moved=true;
+    row.scrollIntoView({block:"nearest"});
+  });
+
   const shade=document.createElement("div");
   shade.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:199";
   const close=()=>{ wrap.remove(); shade.remove(); };
@@ -2020,9 +2097,17 @@ function openColumnPicker(key, defs, available, onApply){
   wrap.onclick=e=>{
     e.stopPropagation();
     const act=e.target.dataset&&e.target.dataset.act;
-    if(act==="reset"){ setColPref(key,null); try{localStorage.removeItem(COLPREF_KEY(key));}catch(_){} close(); onApply(); }
+    if(act==="reset"){
+      setColPref(key,null); setColOrdered(key,false);
+      try{localStorage.removeItem(COLPREF_KEY(key));}catch(_){}
+      close(); onApply();
+    }
     if(act==="done"){
-      const picked=[...wrap.querySelectorAll("input:checked")].map(i=>i.value);
+      const rows=[...list.querySelectorAll(".colrow")];
+      const picked=rows.filter(r=>r.querySelector("input").checked).map(r=>r.dataset.k);
+      /* an order is only kept once one has been set by hand; until then the
+         table keeps deciding where a newly ticked column belongs */
+      if(moved) setColOrdered(key,true);
       setColPref(key, picked.length?picked:defKeys);
       close(); onApply();
     }
