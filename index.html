@@ -395,9 +395,9 @@ tr:hover .polink{border-bottom-color:var(--green)}
 /* ---------- loading, said out loud ----------
    #msg sits below every tab's content, so a bar drawn into it was off the
    bottom of the screen on the one occasion anybody wanted to see it. This
-   rides above the page instead — along the bottom, where it covers neither
-   the title nor the tabs. */
-.loading{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:300;
+   rides above the page instead, in the middle of it, where it is the thing
+   being looked at while there is nothing else to look at. */
+.loading{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:300;
   width:min(440px,92vw);background:var(--panel);border:1px solid var(--line);
   border-radius:10px;padding:11px 14px 13px;box-shadow:0 16px 44px rgba(0,0,0,.65)}
 .loading .lhead{display:flex;justify-content:space-between;align-items:baseline;gap:14px;
@@ -1071,7 +1071,6 @@ function estimateFor(key){
   return sorted[Math.floor(sorted.length/2)];
 }
 const secs=ms=>Math.max(1,Math.round(ms/1000));
-const firstEver=key=>!estimateFor(key);
 
 let LOADBOX=null;
 function startLoad(key,label){
@@ -1181,8 +1180,7 @@ async function load(){
   if(S.book){ applyLots(); return; }          // nothing to wait for
   const wantBook = countRules(rulesFor("lots"));
   const key = wantBook ? "lots:book" : "lots:page";
-  const job = startLoad(key, wantBook ? "Reading the whole book"
-    : (firstEver(key) ? "Loading auctions — the first one can take a while" : "Loading auctions"));
+  const job = startLoad(key, wantBook ? "Reading the whole book" : "Loading Auctions");
   try{
     if(wantBook) await ensureBook();
     if(S.book) applyLots(); else await loadPage();
