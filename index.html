@@ -445,6 +445,7 @@ tr:hover .polink{border-bottom-color:var(--green)}
   <div class="pills" style="margin-top:16px">
     <button class="pill-btn on" data-cat="card">CARDS</button>
     <button class="pill-btn" data-cat="watch">WATCHES</button>
+    <button class="pill-btn" data-cat="premier">PREMIER AUCTIONS</button>
   </div>
 
   <div class="pills" style="margin-top:8px">
@@ -1565,7 +1566,16 @@ const P = {cat:"card", view:"active", page:1, sort:"", dir:"desc", meta:null, bo
    waiting one does not, so each of the four tables keeps its own rules
    rather than carrying a filter somewhere it cannot mean anything. */
 const pScope=()=>"pipe:"+P.cat+":"+P.view;
-const pKey=()=>P.cat+":"+P.view;
+/* PREMIER AUCTIONS is not a category the endpoint knows — it is the card
+   book cut to one showroom section, so it shares the cards' request and
+   their columns while keeping its own saved columns and rules. The section
+   is what the showroom calls Premier Auctions; a lot's premier BLOCK is a
+   different thing, attached when the lot goes live, and the two overlap
+   without matching. */
+const PREMIER_SEC="Premier Auctions";
+const apiCat=()=>P.cat==="premier"?"card":P.cat;
+const inPremier=r=>String(r.COLLECTION||"")===PREMIER_SEC;
+const pKey=()=>apiCat()+":"+P.view;
 
 /* Cards and watches share no attributes, so each category gets its own
    columns. Watches have no slab image, and no VIEW/ADMIN link — admin has no
@@ -1656,6 +1666,10 @@ const PCOLS = {
   }
 };
 
+/* premier auctions are cards in one section, so they offer the cards'
+   columns — the saved choice is still its own, keyed by category */
+PCOLS.premier = PCOLS.card;
+
 function pCell(row,c){
   const v=row[c.k];
   if(c.kind==="sec"){
@@ -1701,10 +1715,10 @@ async function pBook(){
      already on screen, and a click on one asks again — both wait on the one
      request rather than starting a second */
   if(!P.loading[key]){
-    P.loading[key]=bookPages(PAPI,{view:P.view,category:P.cat})
+    P.loading[key]=bookPages(PAPI,{view:P.view,category:apiCat()})
       .then(book=>{
         P.books[key]=book;
-        buildFields("pipe:"+key,book.columns,book.rows);
+        buildFields(pScope(),book.columns,book.rows);
         return book;
       })
       .finally(()=>{ delete P.loading[key]; });
@@ -1728,12 +1742,17 @@ async function loadPipe(){
 }
 
 async function pLoadPage(){
-  const q=new URLSearchParams({view:P.view,category:P.cat});
+  const q=new URLSearchParams({view:P.view,category:apiCat()});
+  /* the endpoint filters on any column it returns, so the page path asks it
+     for the section rather than reading a page and throwing most of it away */
+  if(P.cat==="premier") q.set("COLLECTION",PREMIER_SEC);
   q.set("limit","100"); q.set("offset",String((P.page-1)*100));
   if(P.sort){ q.set("sort",P.sort); q.set("dir",P.dir); }
   const r=await fetch(PAPI+"?"+freshen(q).toString());
-  const b=await r.json();
-  if(!b.ok) throw new Error(b.error||"no data");
+  const got=await r.json();
+  if(!got.ok) throw new Error(got.error||"no data");
+  /* "of N live" should be the premier shelf, not the whole floor */
+  const b = P.cat==="premier" ? {...got, total:got.matched} : got;
   P.meta=b;
   buildFields(pScope(),b.columns||[],b.rows||[]);
   syncFilterUI(pScope(),"#pipeFilt","#pipeChips",()=>{P.page=1;loadPipe();});
@@ -1742,11 +1761,12 @@ async function pLoadPage(){
 
 function applyPipe(){
   const book=P.books[pKey()]; if(!book) return;
-  const rows=sortRows(filterRows(book.rows,pScope()),P.sort,P.dir);
+  const all=P.cat==="premier"?book.rows.filter(inPremier):book.rows;
+  const rows=sortRows(filterRows(all,pScope()),P.sort,P.dir);
   const pages=Math.max(1,Math.ceil(rows.length/100));
   if(P.page>pages) P.page=pages;
   const b={ok:true,rows:rows.slice((P.page-1)*100,P.page*100),columns:book.columns,
-    matched:rows.length,total:book.rows.length,pages,
+    matched:rows.length,total:all.length,pages,
     totals:pTotalsJS(rows,P.view),generated:book.generated};
   P.meta=b;
   syncFilterUI(pScope(),"#pipeFilt","#pipeChips",()=>{P.page=1;loadPipe();});
@@ -1788,10 +1808,12 @@ async function pCounts(){
   if(P.meta&&P.meta.ok) fill(P.view, fmt(P.meta.total));
   const other = P.view==="active" ? "waiting" : "active";
   try{
-    const r=await fetch(PAPI+"?view="+other+"&category="+P.cat+"&limit=1");
+    const q=new URLSearchParams({view:other,category:apiCat(),limit:"1"});
+    if(P.cat==="premier") q.set("COLLECTION",PREMIER_SEC);
+    const r=await fetch(PAPI+"?"+q.toString());
     const b=await r.json();
     if(!b.ok) throw new Error(b.error||"no data");
-    fill(other, fmt(b.total));
+    fill(other, fmt(P.cat==="premier"?b.matched:b.total));
   }catch(_){
     /* show that it is unknown — a stale 0 reads as a real count */
     fill(other,"—");
@@ -1819,7 +1841,9 @@ function pKpis(b){
     out.push(tile("RELISTS",fmt(t.relists),"ran before, back in queue"));
   }
   $("#pipeKpis").innerHTML=out.join("");
-  $("#pipeHead")&&($("#pipeHead").textContent=(P.view==="active"?"LIVE LOTS":"WAITING")+" · "+fmt(b.matched)+(filtered?` of ${fmt(b.total)}`:""));
+  const what=P.cat==="premier"?(P.view==="active"?"PREMIER, LIVE":"PREMIER, WAITING")
+                              :(P.view==="active"?"LIVE LOTS":"WAITING");
+  $("#pipeHead")&&($("#pipeHead").textContent=what+" · "+fmt(b.matched)+(filtered?` of ${fmt(b.total)}`:""));
   $("#mGen").textContent=stamp(b.generated);
 }
 
