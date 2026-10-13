@@ -242,11 +242,6 @@ tr:hover .polink{border-bottom-color:var(--green)}
 .sec.shoebox{color:var(--gold);border-color:var(--gold-dim)}
 .sec.auctions{color:var(--green);border-color:var(--green-dim)}
 .soon{color:var(--red)}
-.state{display:inline-block;padding:2px 7px;border:1px solid var(--line);font-size:10.5px;letter-spacing:1px}
-.state.running{color:var(--green);border-color:var(--green-dim)}
-.state.upcoming{color:var(--blue);border-color:var(--blue-dim)}
-.state.cancelled{color:var(--red);border-color:var(--red-dim)}
-.state.finished{color:var(--muted);opacity:.7}
 .colbtn{background:none;border:1px solid var(--line);color:var(--muted);font-family:var(--mono);
   font-size:12px;letter-spacing:1.5px;padding:8px 15px;border-radius:7px;cursor:pointer}
 .colbtn:hover{color:var(--text);border-color:var(--muted)}
@@ -364,19 +359,19 @@ tr:hover .polink{border-bottom-color:var(--green)}
 .pair{display:flex;gap:6px}
 
 .tscroll{overflow:auto;max-height:70vh;border:1px solid var(--line);background:var(--panel)}
-#lotTbl,#brkTbl,#pipeTbl,#blkTbl{width:100%;border-collapse:collapse;font-size:12.5px}
-#lotTbl th,#brkTbl th,#pipeTbl th,#blkTbl th{position:sticky;top:0;z-index:2;background:var(--panel-2);border-bottom:1px solid var(--line);
+#lotTbl,#brkTbl,#pipeTbl{width:100%;border-collapse:collapse;font-size:12.5px}
+#lotTbl th,#brkTbl th,#pipeTbl th{position:sticky;top:0;z-index:2;background:var(--panel-2);border-bottom:1px solid var(--line);
   padding:9px 11px;text-align:center;font-size:10.5px;letter-spacing:1.3px;color:var(--muted);white-space:nowrap;cursor:pointer;user-select:none}
 /* The sort arrow is appended to the label, so centring the text alone would
    shift the label left every time a column is sorted. The cell centres its
    contents as a unit instead, and the arrow hangs off the end. */
-#lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar,#blkTbl th .ar{position:absolute;margin-left:4px}
+#lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar{position:absolute;margin-left:4px}
 #lotTbl th:hover,#brkTbl th:hover,#pipeTbl th:hover{color:var(--green)}
 #lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar{color:var(--green)}
-#lotTbl td,#brkTbl td,#pipeTbl td,#blkTbl td{padding:8px 11px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
-#lotTbl tbody tr:hover,#brkTbl tbody tr:hover,#pipeTbl tbody tr:hover,#blkTbl tbody tr:hover{background:var(--panel-2)}
-#lotTbl td.num,#brkTbl td.num,#pipeTbl td.num,#blkTbl td.num{text-align:right;font-variant-numeric:tabular-nums}
-#lotTbl td.wrap,#brkTbl td.wrap,#pipeTbl td.wrap,#blkTbl td.wrap{white-space:normal;min-width:190px;max-width:330px}
+#lotTbl td,#brkTbl td,#pipeTbl td{padding:8px 11px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
+#lotTbl tbody tr:hover,#brkTbl tbody tr:hover,#pipeTbl tbody tr:hover{background:var(--panel-2)}
+#lotTbl td.num,#brkTbl td.num,#pipeTbl td.num{text-align:right;font-variant-numeric:tabular-nums}
+#lotTbl td.wrap,#brkTbl td.wrap,#pipeTbl td.wrap{white-space:normal;min-width:190px;max-width:330px}
 .thumb{width:34px;height:46px;object-fit:cover;background:var(--panel-2);border:1px solid var(--line);display:block;cursor:zoom-in}
 .pos{color:var(--green)} .neg{color:var(--red)}
 /* With every column switched on these tables run past 4,500px. Pin the
@@ -425,7 +420,6 @@ tr:hover .polink{border-bottom-color:var(--green)}
   <div>
     <button class="tab on" data-page="lots">COMPLETED AUCTIONS</button>
     <button class="tab" data-page="pipe">PIPELINE <span class="count" id="pipeTabCount"></span></button>
-    <button class="tab" data-page="blocks">BLOCKS <span class="count" id="blocksTabCount"></span></button>
     <button class="tab" data-page="break">BREAKDOWN</button>
   </div>
   <div class="tabtools">
@@ -489,24 +483,6 @@ tr:hover .polink{border-bottom-color:var(--green)}
       <div class="pgbar" id="pipePager"></div>
     </div>
   </div>
-</div>
-
-<!-- ============ BLOCKS ============ -->
-<div id="page-blocks" class="hidden">
-  <div class="kpis" id="blkKpis"></div>
-
-  <div class="crumb hidden" id="blkCrumb">
-    <button class="back" id="blkBack" title="Back to all blocks">&#8592;</button>
-    <h2 id="blkCrumbTitle"></h2>
-  </div>
-
-  <div class="card" style="margin-top:16px">
-    <div class="card-h"><span id="blkHead">AUCTION BLOCKS</span></div>
-    <div class="card-b" style="padding:0">
-      <div class="tscroll"><table id="blkTbl"><thead></thead><tbody></tbody></table></div>
-    </div>
-  </div>
-  <p class="note" id="blkNote"></p>
 </div>
 
 <!-- ============ BREAKDOWN ============ -->
@@ -2024,113 +2000,6 @@ $("#pipeFilt").onclick=async e=>{
 };
 
 
-/* ---------- BLOCKS ----------
-   Every premier auction block, newest first, including ones created but still
-   empty — which is the point: a new block shows up here as soon as it exists.
-   Clicking one lists this account's lots inside it. */
-const BAPI = LOCAL ? null : "/api/blocks";
-const BLK = {block:null, name:null};
-
-const blkDate=v=>{const t=Date.parse(v);return isNaN(t)?"—":new Date(t).toLocaleDateString("en-US",{month:"numeric",day:"numeric",year:"2-digit"});};
-
-async function loadBlocks(){
-  if(!BAPI){
-    $("#msg").innerHTML='<div class="err">Blocks need their own serverless function, which a static local server can’t run — open the deployed site.</div>';
-    return;
-  }
-  const job=startLoad("blocks","Loading auction blocks");
-  try{
-    const url = BLK.block ? `${BAPI}?view=lots&block=${encodeURIComponent(BLK.block)}` : BAPI;
-    const r=await fetch(url + (FORCE_FRESH?`&fresh=1&_=${Date.now()}`:""));
-    const b=await r.json();
-    if(!b.ok) throw new Error(b.error||"no data");
-    endLoad(job);
-    $("#mGen").textContent=stamp(b.generated);
-    BLK.block ? renderBlockLots(b) : renderBlockList(b);
-  }catch(e){
-    endLoad(job,false);
-    $("#msg").innerHTML='<div class="err">Could not load blocks — '+esc(e.message)+'</div>';
-  }
-}
-
-function renderBlockList(b){
-  $("#blkCrumb").classList.add("hidden");
-  $("#blkHead").textContent="AUCTION BLOCKS · "+fmt(b.total);
-  const rows=b.rows||[];
-  const live=rows.filter(r=>r.BLOCK_STATE==="running");
-  const tile=(k,v,sub,cls)=>`<div class="kpi ${cls||""}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub||""}</div></div>`;
-  const sum=(set,k)=>set.reduce((a,r)=>a+numv(r[k]),0);
-  $("#blkKpis").innerHTML=[
-    tile("BLOCKS",fmt(rows.length),"every block ever created"),
-    tile("RUNNING",fmt(live.length),"open right now",live.length?"good":""),
-    tile("UPCOMING",fmt(rows.filter(r=>r.BLOCK_STATE==="upcoming").length),"scheduled, not started"),
-    tile("LOTS RUNNING",fmt(sum(live,"LOTS")),"yours in open blocks"),
-    tile("COST RUNNING",usd(sum(live,"COST")),"what those lots cost"),
-    tile("BIDS RUNNING",usd(sum(live,"CURRENT_BIDS")),"bid so far","gold")
-  ].join("");
-
-  const head=["BLOCK","STATE","VISIBLE","STARTS","ENDS","ALL SUBS","MY LOTS","CARDS","WATCHES","LIVE","SOLD","COST","EST VALUE","CURRENT BIDS","SOLD VALUE"];
-  $("#blkTbl thead").innerHTML="<tr>"+head.map((h,i)=>`<th${i>4?' style="text-align:right"':""}>${h}</th>`).join("")+"</tr>";
-  $("#blkTbl tbody").innerHTML=rows.map(r=>`<tr data-b="${esc(r.BLOCK_ID)}" data-n="${esc(r.BLOCK_NAME)}" style="cursor:pointer">
-    <td class="wrap">${esc(r.BLOCK_NAME||"—")}</td>
-    <td><span class="state ${esc(r.BLOCK_STATE)}">${esc(r.BLOCK_STATE)}</span></td>
-    <td>${r.IS_VISIBLE?"yes":`<span style="opacity:.45">no</span>`}</td>
-    <td class="num">${blkDate(r.STARTS_AT)}</td>
-    <td class="num">${blkDate(r.ENDS_AT)}</td>
-    <td class="num" title="submissions from every seller">${fmt(r.SUBMISSIONS_ALL_SELLERS)}</td>
-    <td class="num">${fmt(r.LOTS)}</td>
-    <td class="num">${fmt(r.CARDS)}</td>
-    <td class="num">${fmt(r.WATCHES)}</td>
-    <td class="num ${numv(r.LIVE)?"pos":""}">${fmt(r.LIVE)}</td>
-    <td class="num">${fmt(r.SOLD)}</td>
-    <td class="num">${usdc(r.COST)}</td>
-    <td class="num">${usdc(r.EST_VALUE)}</td>
-    <td class="num">${usdc(r.CURRENT_BIDS)}</td>
-    <td class="num">${usdc(r.SOLD_VALUE)}</td></tr>`).join("");
-  $$("#blkTbl tbody tr[data-b]").forEach(tr=>tr.onclick=()=>{
-    BLK.block=tr.dataset.b; BLK.name=tr.dataset.n; loadBlocks();
-  });
-  $("#blocksTabCount").textContent=fmt(live.length);
-  $("#blkNote").textContent=`Every block, newest first — including ones created but still empty. ALL SUBS counts every seller's submissions; the rest is ${b.account}. Click a block for its lots.`;
-}
-
-function renderBlockLots(b){
-  const rows=b.rows||[];
-  $("#blkCrumb").classList.remove("hidden");
-  $("#blkCrumbTitle").innerHTML=`${esc(BLK.name||"Block")} <span class="q">${fmt(rows.length)} LOTS</span>`;
-  $("#blkHead").textContent="LOTS IN BLOCK · "+fmt(rows.length);
-  const tile=(k,v,sub,cls)=>`<div class="kpi ${cls||""}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub||""}</div></div>`;
-  const sum=k=>rows.reduce((a,r)=>a+numv(r[k]),0);
-  const cost=sum("PURCHASE_COST"), bids=sum("CURRENT_BID");
-  $("#blkKpis").innerHTML=[
-    tile("LOTS",fmt(rows.length),"yours in this block"),
-    tile("PURCHASE COST",usd(cost),"what they cost"),
-    tile("EST VALUE",usd(sum("ESTIMATED_VALUE")),"book value"),
-    tile("BIDS / SOLD",usd(bids),"current or final"),
-    tile("P/L",usd(bids-cost),"against cost",bids-cost>=0?"good":"bad"),
-    tile("MARGIN",pct(bids?((bids-cost)/bids)*100:null),"bids minus cost ÷ bids",bids-cost>=0?"good":"bad")
-  ].join("");
-
-  const head=["ITEM","","DETAIL","TYPE","APPROVAL","STATUS","CLOSES","PURCHASE COST","EST VALUE","BID / SOLD","BIDS"];
-  $("#blkTbl thead").innerHTML="<tr>"+head.map((h,i)=>`<th${i>6?' style="text-align:right"':""}>${h}</th>`).join("")+"</tr>";
-  $("#blkTbl tbody").innerHTML=rows.length?rows.map(r=>`<tr>
-    <td class="wrap">${esc(r.TITLE||"—")}</td>
-    <td class="wrap">${esc(r.SUBTITLE||"")}</td>
-    <td>${esc(r.DETAIL||"")}</td>
-    <td>${esc(r.ITEM_CATEGORY||"")}</td>
-    <td>${r.APPROVAL==="approved"?`<span style="opacity:.55">approved</span>`:`<span class="neg">${esc(r.APPROVAL||"")}</span>`}</td>
-    <td>${esc(r.AUCTION_STATUS||"")}</td>
-    <td class="num">${blkDate(r.END_AT)}</td>
-    <td class="num">${usdc(r.PURCHASE_COST)}</td>
-    <td class="num">${usdc(r.ESTIMATED_VALUE)}</td>
-    <td class="num">${usdc(r.CURRENT_BID)}</td>
-    <td class="num">${fmt(r.TOTAL_BIDS)}</td></tr>`).join("")
-    :`<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--muted)">Nothing from this account in this block yet.</td></tr>`;
-  $("#blkNote").textContent="BID / SOLD is the current bid while live, and the winning bid once closed.";
-}
-
-$("#blkBack").onclick=()=>{ BLK.block=null; BLK.name=null; loadBlocks(); };
-
 $("#lotCols").onclick=(e)=>{
   e.stopPropagation();
   const b=S.meta||{};
@@ -2298,10 +2167,8 @@ $$(".tab[data-page]").forEach(b=>b.onclick=()=>{
   const pg=b.dataset.page; currentPage=pg;
   $("#page-lots").classList.toggle("hidden",pg!=="lots");
   $("#page-break").classList.toggle("hidden",pg!=="break");
-  $("#page-blocks").classList.toggle("hidden",pg!=="blocks");
   $("#page-pipe").classList.toggle("hidden",pg!=="pipe");
   if(pg==="break") renderBreak();
-  if(pg==="blocks") loadBlocks();
   if(pg==="pipe"){ loadPipe().then(pCounts); }
 });
 
@@ -2325,7 +2192,6 @@ $("#reload").onclick=async()=>{
   try{
     S.book=null; P.books={};
     if(currentPage==="pipe"){ await loadPipe(); pCounts(); }
-    else if(currentPage==="blocks"){ await loadBlocks(); }
     else { await load(); if(currentPage==="break") renderBreak(); }
   } finally {
     FORCE_FRESH=false; btn.disabled=false; btn.textContent=label;
