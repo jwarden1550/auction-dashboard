@@ -1499,14 +1499,26 @@ function setColPref(key,list){
 const niceName = k => k.replace(/_/g," ").replace(/\bAC NUMBER\b/,"AC #")
   .replace(/\bCARD NUMBER\b/,"CARD #").replace(/\bIS /,"");
 
-/* visible columns = the saved choice, else the table's defaults */
+/* visible columns = the saved choice, else the table's defaults.
+   Newly switched-on fields would otherwise land wherever the picker listed
+   them — after VIEW and ADMIN, off the right edge past the scroll, which looks
+   exactly like nothing happened. So the thumbnail stays first and the link
+   columns are forced last, with everything else in between. */
+const LINK_KINDS=/^(view|admin|viewcalc|link)$/;
+function orderCols(cols){
+  const img=cols.filter(c=>c.kind==="img");
+  const links=cols.filter(c=>LINK_KINDS.test(c.kind||""));
+  const rest=cols.filter(c=>c.kind!=="img" && !LINK_KINDS.test(c.kind||""));
+  return img.concat(rest, links);
+}
 function visibleCols(key, defs, available){
   const saved=colPref(key);
-  if(!saved) return defs;
+  if(!saved) return orderCols(defs);
   const byKey={}; defs.forEach(c=>byKey[c.k]=c);
-  return saved
+  const picked=saved
     .filter(k=>byKey[k] || (available||[]).includes(k))
     .map(k=>byKey[k] || {k, t:niceName(k)});
+  return orderCols(picked);
 }
 
 function openColumnPicker(key, defs, available, onApply){
