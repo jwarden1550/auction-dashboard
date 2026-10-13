@@ -1122,6 +1122,10 @@ const PCOLS = {
       {k:"SPORT",t:"SPORT"},
       {k:"GRADE",t:"GRADE"},
       {k:"TAG",t:"TAG"},
+      {k:"INSERT_NAME",t:"INSERT",kind:"wrap"},
+      {k:"YEAR",t:"YEAR"},
+      {k:"GRADING_COMPANY",t:"GRADER"},
+      {k:"IS_ROOKIE",t:"ROOKIE",kind:"bool"},
       {k:"END_AT",t:"CLOSES",kind:"date"},
       {k:"HOURS_LEFT",t:"HRS LEFT",kind:"hrs"},
       {k:"CURRENT_BID",t:"CURRENT BID",kind:"usd"},
@@ -1130,7 +1134,6 @@ const PCOLS = {
       {k:"MARGIN_AT_BID",t:"MARGIN @ BID",kind:"mgnbid",nosort:true,always:true},
       {k:"TOTAL_BIDS",t:"BIDS",kind:"int"},
       {k:"START_PRICE",t:"START",kind:"usd"},
-      {k:"RESERVE",t:"RESERVE",kind:"usd"},
       {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
       {k:"LAST_COMPED",t:"LAST COMPED",kind:"date"},
       {k:"COMP_AGE_DAYS",t:"COMP AGE",kind:"compage"},
@@ -1145,13 +1148,16 @@ const PCOLS = {
       {k:"SPORT",t:"SPORT"},
       {k:"GRADE",t:"GRADE"},
       {k:"TAG",t:"TAG"},
+      {k:"INSERT_NAME",t:"INSERT",kind:"wrap"},
+      {k:"YEAR",t:"YEAR"},
+      {k:"GRADING_COMPANY",t:"GRADER"},
+      {k:"IS_ROOKIE",t:"ROOKIE",kind:"bool"},
       {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
       {k:"LAST_COMPED",t:"LAST COMPED",kind:"date"},
       {k:"COMP_AGE_DAYS",t:"COMP AGE",kind:"compage"},
       {k:"PURCHASE_COST",t:"PURCHASE COST",kind:"usd"},
       {k:"MARGIN_AT_EV",t:"MARGIN @ EV",kind:"mgnev",nosort:true,always:true},
       {k:"PAST_AUCTIONS",t:"PRIOR RUNS",kind:"int"},
-      {k:"ITEM_STATUS",t:"ITEM STATUS"},
       {k:"PUBLIC_URL",t:"VIEW",kind:"view",nosort:true},
       {k:"ADMIN_URL",t:"ADMIN",kind:"admin",nosort:true}
     ]
@@ -1173,7 +1179,6 @@ const PCOLS = {
       {k:"MARGIN_AT_BID",t:"MARGIN @ BID",kind:"mgnbid",nosort:true,always:true},
       {k:"TOTAL_BIDS",t:"BIDS",kind:"int"},
       {k:"START_PRICE",t:"START",kind:"usd"},
-      {k:"RESERVE",t:"RESERVE",kind:"usd"},
       {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"}
     ],
     waiting:[
@@ -1186,8 +1191,7 @@ const PCOLS = {
       {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
       {k:"PURCHASE_COST",t:"PURCHASE COST",kind:"usd"},
       {k:"MARGIN_AT_EV",t:"MARGIN @ EV",kind:"mgnev",nosort:true,always:true},
-      {k:"PAST_AUCTIONS",t:"PRIOR RUNS",kind:"int"},
-      {k:"ITEM_STATUS",t:"ITEM STATUS"}
+      {k:"PAST_AUCTIONS",t:"PRIOR RUNS",kind:"int"}
     ]
   }
 };
