@@ -282,6 +282,65 @@ tr:hover .polink{border-bottom-color:var(--green)}
    remain in the DOM as the value store */
 .fgrid select[multiple]{display:none}
 .card-b.filters{padding:12px 14px}
+
+/* ---------- filter builder ---------- */
+.card-h .hbtns{display:flex;gap:8px;align-items:center}
+.colbtn.on{color:var(--green);border-color:var(--green-dim)}
+.fcount{display:inline-block;margin-left:6px;background:var(--green);color:#000;
+  border-radius:999px;padding:0 6px;font-size:10px;line-height:15px;min-width:15px;text-align:center}
+.fchips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px;border-bottom:1px solid var(--line)}
+.fchip{display:inline-flex;align-items:center;gap:7px;background:var(--panel-2);
+  border:1px solid var(--line);border-radius:999px;padding:4px 6px 4px 11px;
+  font-size:11px;letter-spacing:.5px;color:var(--text)}
+.fchip button{background:none;border:none;color:var(--muted);opacity:.55;cursor:pointer;
+  font-size:14px;line-height:1;padding:0 4px;font-family:var(--mono)}
+.fchip button:hover{opacity:1;color:var(--red)}
+.fchip.clear{padding:4px 11px;letter-spacing:1.2px;color:var(--muted);opacity:.7;cursor:pointer;
+  background:none;font-family:var(--mono);font-size:10px}
+.fchip.clear:hover{opacity:1;color:var(--red);border-color:var(--red-dim)}
+
+.fpanel{position:fixed;left:50%;top:8vh;transform:translateX(-50%);width:min(880px,94vw);
+  max-height:82vh;overflow:auto;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;padding:16px 18px 14px;z-index:200;box-shadow:0 26px 70px rgba(0,0,0,.7)}
+.fphead{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  letter-spacing:2px;font-size:12px;padding-bottom:12px;margin-bottom:13px;
+  border-bottom:1px solid var(--line)}
+.fbadge{color:var(--green);letter-spacing:1.2px;font-size:11px;margin-left:6px}
+.fclearall{background:none;border:none;color:var(--muted);opacity:.6;cursor:pointer;
+  font-family:var(--mono);font-size:11px;letter-spacing:1.2px}
+.fclearall:hover{opacity:1;color:var(--red)}
+.frow{display:flex;gap:7px;align-items:center;margin-bottom:7px;flex-wrap:nowrap}
+.frow select,.frow input{background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+  font-family:var(--mono);font-size:12px;padding:7px 9px;border-radius:6px;min-width:0}
+.frow select:focus,.frow input:focus{outline:none;border-color:var(--green-dim)}
+.frow .ffield{flex:0 0 186px}
+.frow .fop{flex:0 0 152px;color:var(--muted)}
+.frow .fval{flex:1 1 90px}
+.frow .ghostval{flex:1 1 90px;border:none;background:none;padding:0}
+.fjoin{flex:0 0 68px;color:var(--muted);opacity:.62;font-size:11px;letter-spacing:1.3px;
+  padding-left:2px}
+.fconj{flex:0 0 68px}
+.fand{color:var(--muted);opacity:.55;font-size:11px;letter-spacing:1px}
+.fx{background:none;border:none;color:var(--muted);opacity:.45;cursor:pointer;
+  font-size:16px;line-height:1;padding:0 4px;font-family:var(--mono)}
+.fx:hover{opacity:1;color:var(--red)}
+.fgroupbox{position:relative;border:1px dashed var(--line);border-radius:8px;
+  padding:10px 10px 4px;margin:0 0 8px;background:rgba(124,255,79,.02)}
+.fgroupbox .gl{position:absolute;top:-10px;left:12px;background:var(--panel);padding:0 6px;flex:none}
+.fgroupbox select.gl{top:-14px;padding:3px 6px}
+.fgroupbox .gx{position:absolute;top:4px;right:4px}
+.fgroupbox .fgroup{padding-top:4px}
+.fadds{margin:2px 0 4px}
+.fadd{background:none;border:none;color:var(--green);font-family:var(--mono);font-size:11px;
+  letter-spacing:1.2px;cursor:pointer;padding:5px 0;margin-right:18px}
+.fadd.alt{color:var(--blue)}
+.fadd:hover{text-decoration:underline}
+.fpfoot{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--line);
+  padding-top:13px;margin-top:9px}
+@media(max-width:720px){
+  .frow{flex-wrap:wrap}
+  .frow .ffield,.frow .fop{flex:1 1 140px}
+}
 .card-h .tog{background:none;border:1px solid var(--line);color:var(--muted);font-family:var(--mono);
   font-size:10px;letter-spacing:1.2px;padding:3px 9px;border-radius:5px}
 .card-h .tog:hover{color:var(--text);border-color:var(--muted)}
@@ -345,33 +404,12 @@ tr:hover .polink{border-bottom-color:var(--green)}
   <div class="kpis" id="kpis"></div>
 
   <div class="card" style="margin-top:16px">
-    <div class="card-h">
-      <span>FILTERS <span class="active" id="fActive"></span></span>
-      <button class="tog" id="fTog">HIDE</button>
-    </div>
-    <div class="card-b filters" id="fBody">
-      <div class="fgrid">
-        <div><label>PLAYER</label><input id="fPlayer" placeholder="Kobe Bryant, Mbappe" spellcheck="false"></div>
-        <div><label>SET</label><input id="fSet" placeholder="Topps Chrome" spellcheck="false"></div>
-        <div><label>SPORT</label><select id="fSport" multiple></select></div>
-        <div><label>GRADE</label><select id="fGrade" multiple></select></div>
-        <div><label>STATUS</label><select id="fStatus" multiple></select></div>
-        <div><label>TAG</label><select id="fTag" multiple></select></div>
-        <div><label>SOLD FROM</label><input id="fFrom" type="date"></div>
-        <div><label>SOLD TO</label><input id="fTo" type="date"></div>
-        <div><label>SOLD PRICE</label><div class="pair"><input id="fMinSold" type="number" placeholder="min"><input id="fMaxSold" type="number" placeholder="max"></div></div>
-        <div><label>PO NUMBER</label><input id="fPo" placeholder="PO-1234" spellcheck="false"></div>
-        <div style="display:flex;gap:8px">
-          <button class="btn" id="apply" style="flex:1">APPLY</button>
-          <button class="btn ghost" id="clear">CLEAR</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="card" style="margin-top:14px">
     <div class="card-h"><span id="lotHead">COMPLETED AUCTIONS</span>
-      <button class="colbtn" id="lotCols">COLUMNS</button></div>
+      <span class="hbtns">
+        <button class="colbtn" id="lotFilt">FILTER<span class="fcount hidden">0</span></button>
+        <button class="colbtn" id="lotCols">COLUMNS</button>
+      </span></div>
+    <div class="fchips hidden" id="lotChips"></div>
     <div class="card-b" style="padding:0">
       <div class="tscroll">
         <table id="lotTbl"><thead></thead><tbody></tbody></table>
@@ -399,29 +437,12 @@ tr:hover .polink{border-bottom-color:var(--green)}
   </div>
 
   <div class="card" style="margin-top:14px">
-    <div class="card-h">
-      <span>FILTERS <span class="active" id="pActive"></span></span>
-      <button class="tog" id="pTog">HIDE</button>
-    </div>
-    <div class="card-b filters" id="pBody">
-      <div class="fgrid">
-        <div><label>PLAYER</label><input id="pPlayer" placeholder="Kobe Bryant" spellcheck="false"></div>
-        <div><label>SET</label><input id="pSet" placeholder="Topps Chrome" spellcheck="false"></div>
-        <div><label>SECTION</label><select id="pColl" multiple></select></div>
-        <div><label>SPORT</label><select id="pSport" multiple></select></div>
-        <div><label>TAG</label><select id="pTag" multiple></select></div>
-        <div><label>GRADE</label><select id="pGrade" multiple></select></div>
-        <div style="display:flex;gap:8px">
-          <button class="btn" id="pApply" style="flex:1">APPLY</button>
-          <button class="btn ghost" id="pClear">CLEAR</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="card" style="margin-top:14px">
     <div class="card-h"><span id="pipeHead">LOTS</span>
-      <button class="colbtn" id="pipeCols">COLUMNS</button></div>
+      <span class="hbtns">
+        <button class="colbtn" id="pipeFilt">FILTER<span class="fcount hidden">0</span></button>
+        <button class="colbtn" id="pipeCols">COLUMNS</button>
+      </span></div>
+    <div class="fchips hidden" id="pipeChips"></div>
     <div class="card-b" style="padding:0">
       <div class="tscroll"><table id="pipeTbl"><thead></thead><tbody></tbody></table></div>
     </div>
@@ -513,7 +534,7 @@ const stamp=v=>{
   return "data pulled "+new Date(t).toLocaleString("en-US",
     {month:"numeric",day:"numeric",year:"2-digit",hour:"numeric",minute:"2-digit"});
 };
-const S={page:1,sort:"SOLD_AT",dir:"desc",rows:[],meta:null,all:null,allAt:0};
+const S={page:1,sort:"SOLD_AT",dir:"desc",rows:[],meta:null,book:null,view:null};
 
 /* the columns worth showing, in order — anything else the question adds
    still filters and exports, it just doesn't crowd the table */
@@ -545,7 +566,427 @@ const COLS=[
   {k:"CARD_URL",     t:"ADMIN",         kind:"admin", nosort:true}
 ];
 
-/* ---------- query building ---------- */
+/* ================= FILTER BUILDER =================
+   One rule builder serves both tables. It replaces the fixed filter grids,
+   which could only ask the questions they had boxes for: a row is
+   field · operator · value, rows can be grouped, and groups join with AND or
+   OR. Everything is evaluated here in the browser over the whole book, so a
+   rule sees all 3,000-odd lots rather than the hundred currently on screen —
+   which is why both tabs now load their book up front instead of a page at a
+   time. */
+
+/* Label and type for the fields worth filtering on. Anything the endpoint
+   returns that is missing here still appears, typed by looking at its values;
+   this map is for the ones where the name or the type is not obvious. */
+const FMETA={
+  PLAYER_NAME:{l:"Player name"}, SET_NAME:{l:"Set name"}, SPORT:{l:"Sport"},
+  GRADE:{l:"Grade"}, TAG:{l:"Tag"}, INSERT:{l:"Insert"}, INSERT_NAME:{l:"Insert"},
+  PARALLEL_NAME:{l:"Parallel"}, PARALLEL_NUMBER:{l:"Parallel #",t:"num"},
+  PARALLEL_TOTAL:{l:"Parallel /total",t:"num"}, TEAM:{l:"Team"},
+  SLAB_TYPE:{l:"Slab type"}, RARITY:{l:"Rarity"}, LANGUAGE:{l:"Language"},
+  EDITION:{l:"Edition"}, GRADING_COMPANY:{l:"Grading company"},
+  YEAR:{l:"Year",t:"num"}, CARD_NUMBER:{l:"Card #",t:"text"},
+  AC_NUMBER:{l:"AC #",t:"num"}, "8ac_number":{l:"AC #",t:"num"},
+  CERT_NUMBER:{l:"Cert #",t:"text"}, PO_NUMBER:{l:"PO number",t:"text"},
+  NUMBER:{l:"Lot #",t:"num"},
+  IS_ROOKIE:{l:"Is rookie",t:"bool"}, IS_RELIC:{l:"Is relic",t:"bool"},
+  IS_FULL_ART:{l:"Is full art",t:"bool"}, IS_SHOEBOX:{l:"Is shoebox",t:"bool"},
+  COLLECTION:{l:"Section"}, PREMIER_BLOCK:{l:"Block"}, AUCTION_STATUS:{l:"Status"},
+  ITEM_CATEGORY:{l:"Category"}, COST_KIND:{l:"Cost source"},
+  ESTIMATED_VALUE:{l:"Est value",t:"usd"}, PURCHASE_COST:{l:"Purchase cost",t:"usd"},
+  SOLD_PRICE:{l:"Sold price",t:"usd"}, SOLD_VS_EV:{l:"Sold price vs. EV",t:"usd"},
+  MARGIN:{l:"Profit $",t:"usd"}, CURRENT_BID:{l:"Current bid",t:"usd"},
+  START_PRICE:{l:"Start price",t:"usd"}, RESERVE:{l:"Reserve",t:"usd"},
+  TOTAL_BIDS:{l:"Bids",t:"num"}, PAST_AUCTIONS:{l:"Prior runs",t:"num"},
+  COMP_AGE_DAYS:{l:"Days since last comp",t:"num"}, HOURS_LEFT:{l:"Hours left",t:"num"},
+  SOLD_AT:{l:"Sold date",t:"date"}, START_AT:{l:"Start date",t:"date"},
+  END_AT:{l:"Close date",t:"date"}, LAST_COMPED:{l:"Last comped",t:"date"},
+  BRAND:{l:"Brand"}, MODEL:{l:"Model"}, REFERENCE:{l:"Reference"}, CONDITION:{l:"Condition"},
+  ITEM_STATUS:{l:"Item status"}
+};
+/* ids, image and link columns — nothing you would ever filter on */
+const FHIDE=/^(FRONT_SLAB_PICTURE_URL|PUBLIC_URL|ADMIN_URL|CARD_URL|AUCTION_URL|AUCTION_ID|ITEM_ID|COST_BUY_ORDER_ID|COST_ROW_COUNT)$/;
+/* completed rows carry the AC number as 8ac_number and pick AC_NUMBER up
+   again from /api/cardattrs, which put the same field in the list twice under
+   the same name. Where both are present the one on the row itself wins. */
+const FBEATEN={AC_NUMBER:"8ac_number"};
+
+/* Columns the table works out per row rather than reading off it. They are
+   computed on demand so nothing is written back onto the row — the export
+   still ships exactly the fields the endpoint sent. `need` lists the raw
+   fields each one is made of, which is also how a scope decides whether to
+   offer it. */
+const FDERIVED={
+  MARGIN_PCT:{l:"Margin %",t:"pct",need:["SOLD_PRICE","PURCHASE_COST"],
+    f:r=>{const sp=numv(r.SOLD_PRICE); return sp?((sp-numv(r.PURCHASE_COST))/sp)*100:null;}},
+  PL_AT_BID:{l:"P/L @ bid",t:"usd",need:["CURRENT_BID","PURCHASE_COST"],
+    f:r=>{const b=numv(r.CURRENT_BID); return b?b-numv(r.PURCHASE_COST):null;}},
+  MARGIN_AT_BID:{l:"Margin @ bid",t:"pct",need:["CURRENT_BID","PURCHASE_COST"],
+    f:r=>{const b=numv(r.CURRENT_BID); return b?((b-numv(r.PURCHASE_COST))/b)*100:null;}},
+  /* only where nothing has sold yet — a completed lot has SOLD PRICE VS. EV
+     and MARGIN % for the same job, measured against what it really made */
+  MARGIN_AT_EV:{l:"Margin @ EV",t:"pct",need:["ESTIMATED_VALUE","PURCHASE_COST"],not:["SOLD_PRICE"],
+    f:r=>{const e=numv(r.ESTIMATED_VALUE); return e?((e-numv(r.PURCHASE_COST))/e)*100:null;}},
+  /* completed lots carry no block column; the block is looked up by auction
+     id the same way the BLOCK cell does, so filtering and the table agree */
+  PREMIER_BLOCK:{l:"Block",t:"text",need:["AUCTION_URL"],
+    f:r=>{const id=auctionIdOf(r); return (id&&PREMIER&&PREMIER[id])||"standard";}}
+};
+const fval=(r,k)=>{
+  const d=FDERIVED[k];
+  if(d && r[k]===undefined) return d.f(r);
+  return r[k];
+};
+
+const FOPS={
+  text:[["has","includes"],["!has","does not include"],["is","is"],["!is","is not"],
+        ["sw","starts with"],["anyhas","includes any of"],["any","is any of"],
+        ["empty","is empty"],["!empty","is not empty"]],
+  num:[["=","="],["!=","is not"],[">","greater than"],[">=","at least"],
+       ["<","less than"],["<=","at most"],["btw","between"],
+       ["empty","is empty"],["!empty","is not empty"]],
+  date:[["on","is"],["before","is before"],["after","is after"],["btw","is between"],
+        ["last","is in the last"],["empty","is empty"],["!empty","is not empty"]],
+  bool:[["true","is true"],["false","is false"]]
+};
+const opsFor=t=>FOPS[t==="usd"||t==="pct"?"num":t]||FOPS.text;
+const isNumT=t=>t==="num"||t==="usd"||t==="pct";
+
+/* how many value boxes an operator needs */
+const opArity=o=>o==="empty"||o==="!empty"||o==="true"||o==="false"?0:o==="btw"?2:1;
+
+function ftype(k,rows){
+  const m=FMETA[k]; if(m&&m.t) return m.t;
+  let seen=0,num=0,bool=0,date=0;
+  for(let i=0;i<rows.length&&seen<150;i++){
+    const v=rows[i][k];
+    if(v===null||v===undefined||v==="") continue;
+    seen++;
+    if(typeof v==="boolean"){ bool++; continue; }
+    if(typeof v==="number"||/^-?\d+(\.\d+)?$/.test(String(v).trim())) num++;
+    else if(/^\d{4}-\d{2}-\d{2}[T ]/.test(String(v))) date++;
+  }
+  if(!seen) return "text";
+  if(bool===seen) return "bool";
+  if(date===seen) return "date";
+  if(num===seen) return "num";
+  return "text";
+}
+
+/* The field list a scope offers, plus the distinct values behind each text
+   field so the value box can suggest what is actually in the data. */
+const FSCOPE={};
+function buildFields(scope,cols,rows){
+  const seen={},out=[];
+  (cols||[]).forEach(k=>{
+    if(!k||FHIDE.test(k)||seen[k]) return;
+    if(FBEATEN[k]&&(cols||[]).includes(FBEATEN[k])) return;
+    seen[k]=1;
+    out.push({k,l:(FMETA[k]||{}).l||niceName(k),t:ftype(k,rows)});
+  });
+  Object.keys(FDERIVED).forEach(k=>{
+    if(seen[k]) return;
+    const d=FDERIVED[k];
+    if(!d.need.every(n=>(cols||[]).includes(n))) return;
+    if((d.not||[]).some(n=>(cols||[]).includes(n))) return;
+    seen[k]=1; out.push({k,l:d.l,t:d.t});
+  });
+  out.sort((a,b)=>a.l.localeCompare(b.l));
+  const vals={};
+  out.filter(f=>f.t==="text").forEach(f=>{
+    const s=new Set();
+    for(let i=0;i<rows.length&&s.size<400;i++){
+      const v=fval(rows[i],f.k);
+      if(v!==null&&v!==undefined&&String(v).trim()!=="") s.add(String(v));
+    }
+    if(s.size&&s.size<=400) vals[f.k]=[...s].sort((a,b)=>a.localeCompare(b));
+  });
+  FSCOPE[scope]={fields:out,vals,byKey:Object.fromEntries(out.map(f=>[f.k,f]))};
+  return FSCOPE[scope];
+}
+
+/* ---------- the rule tree ---------- */
+const FRULES={};
+const FKEY=scope=>"auctiondash.rules."+scope;
+function rulesFor(scope){
+  if(FRULES[scope]) return FRULES[scope];
+  let t=null;
+  try{ const raw=localStorage.getItem(FKEY(scope)); if(raw) t=JSON.parse(raw); }catch(_){}
+  if(!t||t.k!=="g") t={k:"g",op:"and",items:[]};
+  FRULES[scope]=t; return t;
+}
+function saveRules(scope){
+  try{ localStorage.setItem(FKEY(scope),JSON.stringify(rulesFor(scope))); }catch(_){}
+}
+const newRule=()=>({k:"r",f:"",o:"",t:"text",v:"",v2:""});
+/* a rule counts as live once it has a field and whatever value its operator
+   needs — half-typed rows must not silently empty the table */
+const liveRule=r=>!!r.f&&!!r.o&&(opArity(r.o)===0||String(r.v||"").trim()!==""||String(r.v2||"").trim()!=="");
+function countRules(node){
+  if(node.k!=="g") return liveRule(node)?1:0;
+  return (node.items||[]).reduce((a,c)=>a+countRules(c),0);
+}
+
+function ruleHit(r,rule){
+  const t=rule.t||"text",o=rule.o;
+  const raw=fval(r,rule.f);
+  const blank=raw===null||raw===undefined||String(raw).trim()==="";
+  if(o==="empty") return blank;
+  if(o==="!empty") return !blank;
+  if(t==="bool"){
+    const b=raw===true||raw==="true"||raw===1||raw==="1";
+    return o==="true"?b:!b;
+  }
+  if(t==="date"){
+    if(blank) return false;
+    const ts=Date.parse(raw); if(isNaN(ts)) return false;
+    if(o==="last"){ const n=Number(rule.v); return !n||ts>=Date.now()-n*864e5; }
+    const d=new Date(ts), day=d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();
+    const toDay=s=>{ const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s||"")); return m?(+m[1])*10000+(+m[2])*100+(+m[3]):null; };
+    const a=toDay(rule.v),b2=toDay(rule.v2);
+    if(o==="on") return a!==null&&day===a;
+    if(o==="before") return a!==null&&day<a;
+    if(o==="after") return a!==null&&day>a;
+    if(o==="btw") return (a===null||day>=a)&&(b2===null||day<=b2);
+    return true;
+  }
+  if(isNumT(t)){
+    if(blank) return false;
+    const n=numv(raw);
+    const a=String(rule.v||"").trim()===""?null:Number(rule.v);
+    const b2=String(rule.v2||"").trim()===""?null:Number(rule.v2);
+    switch(o){
+      case "=":   return a===null||n===a;
+      case "!=":  return a===null||n!==a;
+      case ">":   return a!==null&&n>a;
+      case ">=":  return a!==null&&n>=a;
+      case "<":   return a!==null&&n<a;
+      case "<=":  return a!==null&&n<=a;
+      case "btw": return (a===null||n>=a)&&(b2===null||n<=b2);
+    }
+    return true;
+  }
+  const s=String(raw==null?"":raw).toLowerCase();
+  const q=String(rule.v==null?"":rule.v).trim().toLowerCase();
+  if(!q) return true;
+  const list=()=>q.split(",").map(x=>x.trim()).filter(Boolean);
+  switch(o){
+    case "has":    return s.includes(q);
+    case "!has":   return !s.includes(q);
+    case "is":     return s===q;
+    case "!is":    return s!==q;
+    case "sw":     return s.startsWith(q);
+    case "anyhas": return list().some(x=>s.includes(x));
+    case "any":    return list().some(x=>s===x);
+  }
+  return true;
+}
+function nodeHit(r,node){
+  if(node.k!=="g") return liveRule(node)?ruleHit(r,node):true;
+  const kids=(node.items||[]).filter(c=>c.k==="g"?countRules(c):liveRule(c));
+  if(!kids.length) return true;
+  return node.op==="or"?kids.some(c=>nodeHit(r,c)):kids.every(c=>nodeHit(r,c));
+}
+const filterRows=(rows,scope)=>{
+  const t=rulesFor(scope);
+  return countRules(t)?rows.filter(r=>nodeHit(r,t)):rows;
+};
+
+/* ---------- the panel ---------- */
+function ruleText(scope,rule){
+  const sc=FSCOPE[scope]||{byKey:{}};
+  const f=sc.byKey[rule.f];
+  const op=(opsFor(rule.t).find(o=>o[0]===rule.o)||["",rule.o])[1];
+  const val=opArity(rule.o)===0?"":opArity(rule.o)===2
+    ? `${rule.v||"…"} – ${rule.v2||"…"}`
+    : (rule.o==="last"?`${rule.v} days`:rule.v);
+  return `${(f&&f.l)||rule.f} ${op}${val?" "+val:""}`;
+}
+function chipsHtml(scope){
+  const t=rulesFor(scope),out=[];
+  const walk=(n,path)=>{
+    (n.items||[]).forEach((c,i)=>{
+      const p=path.concat(i);
+      if(c.k==="g") walk(c,p);
+      else if(liveRule(c)) out.push(`<span class="fchip">${esc(ruleText(scope,c))}
+        <button data-path="${p.join(".")}" title="remove">×</button></span>`);
+    });
+  };
+  walk(t,[]);
+  if(!out.length) return "";
+  return out.join("")+`<button class="fchip clear" data-clearall="1">CLEAR ALL</button>`;
+}
+function dropPath(scope,path){
+  const idx=path.split(".").map(Number);
+  let n=rulesFor(scope);
+  for(let i=0;i<idx.length-1;i++) n=n.items[idx[i]];
+  n.items.splice(idx[idx.length-1],1);
+  saveRules(scope);
+}
+
+function openFilterPanel(scope,title,onApply){
+  const sc=FSCOPE[scope]||{fields:[],vals:{},byKey:{}};
+  const root=rulesFor(scope);
+  const snapshot=JSON.stringify(root);
+
+  const shade=document.createElement("div");
+  shade.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:199";
+  const wrap=document.createElement("div");
+  wrap.className="fpanel";
+  document.body.appendChild(shade); document.body.appendChild(wrap);
+  const close=()=>{ wrap.remove(); shade.remove(); document.removeEventListener("keydown",onKey); };
+  const cancel=()=>{ FRULES[scope]=JSON.parse(snapshot); close(); };
+  const onKey=e=>{ if(e.key==="Escape") cancel(); };
+  document.addEventListener("keydown",onKey);
+  shade.onclick=cancel;
+
+  const optList=(opts,sel)=>opts.map(([v,l])=>
+    `<option value="${esc(v)}" ${v===sel?"selected":""}>${esc(l)}</option>`).join("");
+
+  function rowHtml(rule,path,i,group){
+    const f=sc.byKey[rule.f];
+    const t=f?f.t:(rule.t||"text");
+    const ops=opsFor(t);
+    const join=i===0
+      ? `<span class="fjoin">Where</span>`
+      : i===1
+        ? `<select class="fconj" data-conj="${path.slice(0,-1).join(".")}">
+             <option value="and" ${group.op!=="or"?"selected":""}>And</option>
+             <option value="or" ${group.op==="or"?"selected":""}>Or</option></select>`
+        : `<span class="fjoin">${group.op==="or"?"Or":"And"}</span>`;
+    const n=opArity(rule.o);
+    const listId="fl_"+path.join("_");
+    const box=(which,val)=>{
+      if(t==="date"&&rule.o!=="last") return `<input class="fval" type="date" data-v="${which}" data-path="${path.join(".")}" value="${esc(val||"")}">`;
+      if(isNumT(t)||rule.o==="last") return `<input class="fval" type="number" step="any" data-v="${which}" data-path="${path.join(".")}" value="${esc(val||"")}" placeholder="${rule.o==="last"?"days":which==="v2"?"max":"value…"}">`;
+      const dl=sc.vals[rule.f];
+      return `<input class="fval" data-v="${which}" data-path="${path.join(".")}" value="${esc(val||"")}"
+        placeholder="value…" spellcheck="false" ${dl?`list="${listId}"`:""}>
+        ${dl?`<datalist id="${listId}">${dl.slice(0,400).map(v=>`<option value="${esc(v)}">`).join("")}</datalist>`:""}`;
+    };
+    return `<div class="frow">
+      ${join}
+      <select class="ffield" data-field="${path.join(".")}">
+        <option value="">choose a field…</option>
+        ${sc.fields.map(x=>`<option value="${esc(x.k)}" ${x.k===rule.f?"selected":""}>${esc(x.l)}</option>`).join("")}
+      </select>
+      <select class="fop" data-op="${path.join(".")}" ${rule.f?"":"disabled"}>${optList(ops,rule.o)}</select>
+      ${n>=1?box("v",rule.v):""}
+      ${n===2?`<span class="fand">and</span>`+box("v2",rule.v2):""}
+      ${n===0?`<span class="fval ghostval"></span>`:""}
+      <button class="fx" data-del="${path.join(".")}" title="remove">×</button>
+    </div>`;
+  }
+  function groupHtml(node,path){
+    const inner=(node.items||[]).map((c,i)=>c.k==="g"
+      ? `<div class="fgroupbox">
+           ${i===0?`<span class="fjoin gl">Where</span>`:i===1
+             ? `<select class="fconj gl" data-conj="${path.join(".")}">
+                  <option value="and" ${node.op!=="or"?"selected":""}>And</option>
+                  <option value="or" ${node.op==="or"?"selected":""}>Or</option></select>`
+             : `<span class="fjoin gl">${node.op==="or"?"Or":"And"}</span>`}
+           <button class="fx gx" data-del="${path.concat(i).join(".")}" title="remove group">×</button>
+           ${groupHtml(c,path.concat(i))}
+         </div>`
+      : rowHtml(c,path.concat(i),i,node)).join("");
+    return `<div class="fgroup">${inner||`<p class="note" style="margin:2px 0 8px">No filters yet — every lot shows.</p>`}
+      <div class="fadds">
+        <button class="fadd" data-addrule="${path.join(".")}">+ Add filter</button>
+        <button class="fadd alt" data-addgroup="${path.join(".")}">+ Add group</button>
+      </div></div>`;
+  }
+  const at=p=>{ let n=root; (p===""?[]:p.split(".").map(Number)).forEach(i=>{n=n.items[i];}); return n; };
+
+  /* the "N active" count, without rebuilding the rows under the cursor */
+  function badge(){
+    const n=countRules(root), el=wrap.querySelector(".fbadge");
+    if(el) el.textContent=n?n+" active":"";
+  }
+  function draw(){
+    const n=countRules(root);
+    wrap.innerHTML=`<div class="fphead">
+        <span>FILTER ${esc(title)} <span class="fbadge">${n?n+" active":""}</span></span>
+        <button class="fclearall" data-act="clear">Clear all</button>
+      </div>
+      ${groupHtml(root,[])}
+      <div class="fpfoot">
+        <button class="btn ghost" data-act="cancel">CANCEL</button>
+        <button class="btn" data-act="apply">APPLY</button>
+      </div>`;
+
+    wrap.querySelectorAll("[data-addrule]").forEach(b=>b.onclick=()=>{
+      at(b.dataset.addrule).items.push(newRule()); draw();
+    });
+    wrap.querySelectorAll("[data-addgroup]").forEach(b=>b.onclick=()=>{
+      at(b.dataset.addgroup).items.push({k:"g",op:"and",items:[newRule()]}); draw();
+    });
+    wrap.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
+      const p=b.dataset.del.split(".").map(Number);
+      const parent=at(p.slice(0,-1).join("."));
+      parent.items.splice(p[p.length-1],1); draw();
+    });
+    wrap.querySelectorAll("[data-conj]").forEach(s=>s.onchange=()=>{
+      at(s.dataset.conj).op=s.value; draw();
+    });
+    wrap.querySelectorAll("[data-field]").forEach(s=>s.onchange=()=>{
+      const r=at(s.dataset.field);
+      r.f=s.value;
+      const f=sc.byKey[r.f];
+      r.t=f?f.t:"text";
+      r.o=opsFor(r.t)[0][0];        // first operator for the new type
+      r.v=""; r.v2=""; draw();
+    });
+    wrap.querySelectorAll("[data-op]").forEach(s=>s.onchange=()=>{
+      const r=at(s.dataset.op), was=r.o;
+      r.o=s.value;
+      if(opArity(r.o)===0){ r.v=""; r.v2=""; }
+      /* redraw only when the row changes shape — the number of value boxes,
+         or a date switching between a calendar and a count of days */
+      const shape=o=>opArity(o)+":"+(o==="last");
+      if(shape(was)!==shape(r.o)) draw(); else badge();
+    });
+    /* value boxes update the model as you type and never redraw — a redraw
+       here would take the caret with it */
+    wrap.querySelectorAll("[data-v]").forEach(i=>{
+      i.oninput=()=>{ at(i.dataset.path)[i.dataset.v]=i.value; badge(); };
+      i.onkeydown=e=>{ if(e.key==="Enter"){ e.preventDefault(); apply(); } };
+    });
+    wrap.querySelector("[data-act='clear']").onclick=()=>{ root.items=[]; draw(); };
+    wrap.querySelector("[data-act='cancel']").onclick=cancel;
+    wrap.querySelector("[data-act='apply']").onclick=apply;
+  }
+  function apply(){
+    /* drop rows that were opened and left blank rather than keep dead UI */
+    const prune=n=>{
+      n.items=(n.items||[]).filter(c=>c.k==="g"?(prune(c),(c.items||[]).length):liveRule(c));
+      return n;
+    };
+    prune(root); saveRules(scope); close(); onApply();
+  }
+  draw();
+}
+
+/* FILTER button, its count, and the chip row under the table head */
+function syncFilterUI(scope,btnId,chipId,onApply){
+  const btn=$(btnId),box=$(chipId);
+  const n=countRules(rulesFor(scope));
+  if(btn){
+    const b=btn.querySelector(".fcount");
+    if(b){ b.textContent=n; b.classList.toggle("hidden",!n); }
+    btn.classList.toggle("on",!!n);
+  }
+  if(box){
+    box.innerHTML=chipsHtml(scope);
+    box.classList.toggle("hidden",!n);
+    box.querySelectorAll("[data-path]").forEach(b=>b.onclick=()=>{
+      dropPath(scope,b.dataset.path); onApply();
+    });
+    const ca=box.querySelector("[data-clearall]");
+    if(ca) ca.onclick=()=>{ rulesFor(scope).items=[]; saveRules(scope); onApply(); };
+  }
+}
+
+/* ---------- loading the book ---------- */
 /* REFRESH was firing a request but getting the same snapshot back: the
    function caches for minutes and the CDN in front of it longer, so a plain
    re-request could only return what was already held. This flag makes the
@@ -553,53 +994,144 @@ const COLS=[
    cache-buster so no CDN or browser copy can answer instead. */
 let FORCE_FRESH=false;
 const freshen=q=>{ if(FORCE_FRESH){ q.set("fresh","1"); q.set("_",String(Date.now())); } return q; };
-function filters(){
-  const p=new URLSearchParams();
-  const put=(k,v)=>{ v=(v||"").trim(); if(v) p.set(k,v); };
-  put("PLAYER_NAME",$("#fPlayer").value);
-  put("SET_NAME",$("#fSet").value);
-  put("PO_NUMBER",$("#fPo").value);
-  const multi=(el,col)=>{const v=[...el.selectedOptions].map(o=>o.value).filter(Boolean);if(v.length)p.set(col,v.join(","));};
-  multi($("#fSport"),"SPORT"); multi($("#fGrade"),"GRADE");
-  multi($("#fStatus"),"AUCTION_STATUS"); multi($("#fTag"),"TAG");
-  put("from_SOLD_AT",$("#fFrom").value); put("to_SOLD_AT",$("#fTo").value);
-  put("min_SOLD_PRICE",$("#fMinSold").value); put("max_SOLD_PRICE",$("#fMaxSold").value);
-  return p;
+/* The whole book, once. The builder asks questions the endpoint has no
+   parameters for, so the filtering happens here — which only tells the truth
+   if everything is here. The first request says how many pages there are and
+   the rest go out together, rather than one after another. */
+const BOOKPAGE=1000;
+const bar=note=>'<div class="bar"><i></i></div>'+(note?`<p class="note">${esc(note)}</p>`:"");
+/* Every page of an endpoint, merged. The first request says how many there
+   are; the rest go out together rather than one after another. */
+async function bookPages(url, extra){
+  const get=async off=>{
+    const p=new URLSearchParams(extra||"");
+    p.set("limit",String(BOOKPAGE)); p.set("offset",String(off));
+    const r=await fetch(url+"?"+freshen(p).toString());
+    const b=await r.json();
+    if(!b.ok) throw new Error(b.error||"the endpoint returned no data");
+    return b;
+  };
+  const first=await get(0);
+  const pages=Math.max(1,first.pages||1);
+  let done=1;
+  $("#msg").innerHTML=bar(pages>1?`reading the whole book — ${fmt(first.total||0)} lots, ${pages} pages`:"");
+  const rest=await Promise.all(Array.from({length:pages-1},(_,i)=>
+    get((i+1)*BOOKPAGE).then(b=>{
+      done++;
+      $("#msg").innerHTML=bar(`reading the whole book — page ${done} of ${pages}`);
+      return b;
+    })));
+  const rows=(first.rows||[]).slice();
+  rest.forEach(b=>rows.push(...(b.rows||[])));
+  return {rows,columns:first.columns||[],generated:first.generated};
+}
+
+/* The book is 11,811 lots — about ten megabytes — so it is not something to
+   drag down just to show the first hundred. Unfiltered, the table pages off
+   the endpoint the way it always has. A rule is a question about every lot,
+   so asking one fetches the book, once, and everything after that (filter,
+   sort, page, breakdown, export) is answered from it without another
+   request. */
+async function ensureBook(){
+  if(S.book) return S.book;
+  const [book]=await Promise.all([bookPages(API),premierBlocks(),costFixes(),cardAttrs()]);
+  applyCostFixes(book.rows); applyCardAttrs(book.rows);
+  S.book=book;
+  buildFields("lots",book.columns.concat(EXTRA_CARD_FIELDS),book.rows);
+  return book;
 }
 
 async function load(){
-  const p=freshen(filters());
-  p.set("limit","100"); p.set("offset",String((S.page-1)*100));
-  p.set("sort",S.sort); p.set("dir",S.dir);
-  $("#msg").innerHTML='<div class="bar"><i></i></div>';
+  $("#msg").innerHTML=bar();
   try{
-    const r=await fetch(API+"?"+p.toString());
-    const b=await r.json();
-    if(!b.ok) throw new Error(b.error||"the endpoint returned no data");
-    S.rows=b.rows||[]; S.meta=b;
-    await premierBlocks();
-    await costFixes(); applyCostFixes(S.rows);
-    if(needsCardAttrs()){ await cardAttrs(); applyCardAttrs(S.rows); }
+    if(countRules(rulesFor("lots"))) await ensureBook();
+    if(S.book) applyLots(); else await loadPage();
     $("#msg").innerHTML="";
-    fillFacets(b); renderKpis(b); renderTable(b);
   }catch(e){
     $("#msg").innerHTML='<div class="err">Could not load auctions — '+esc(e.message)+'</div>';
   }
 }
 
-/* ---------- filter options, filled from the endpoint's own facets ---------- */
-let facetsDone=false;
-function fillFacets(b){
-  if(facetsDone||!b.facets) return;
-  const fill=(el,col)=>{
-    const f=b.facets[col]; if(!f) return;
-    el.innerHTML=f.values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
-  };
-  fill($("#fSport"),"SPORT"); fill($("#fGrade"),"GRADE");
-  fill($("#fStatus"),"AUCTION_STATUS"); fill($("#fTag"),"TAG");
-  [["#fSport","sport"],["#fGrade","grade"],["#fStatus","status"],["#fTag","tag"]]
-    .forEach(([id,lab])=>{ msel(id,lab); $(id).dispatchEvent(new Event("optionsfilled")); });
-  facetsDone=true;
+/* one page, straight off the endpoint, with its own totals */
+async function loadPage(){
+  const p=new URLSearchParams();
+  p.set("limit","100"); p.set("offset",String((S.page-1)*100));
+  p.set("sort",S.sort); p.set("dir",S.dir);
+  const r=await fetch(API+"?"+freshen(p).toString());
+  const b=await r.json();
+  if(!b.ok) throw new Error(b.error||"the endpoint returned no data");
+  /* card attributes used to come down only when one of their columns was on.
+     The filter offers every one of them, so they come with the rows now — a
+     field you can filter on must not be empty because of how the table
+     happens to be set up. */
+  await Promise.all([premierBlocks(),costFixes(),cardAttrs()]);
+  applyCostFixes(b.rows); applyCardAttrs(b.rows);
+  S.rows=b.rows; S.meta=b; S.view=null;
+  buildFields("lots",(b.columns||[]).concat(EXTRA_CARD_FIELDS),b.rows);
+  syncFilterUI("lots","#lotFilt","#lotChips",()=>{S.page=1;load();});
+  renderKpis(b); renderTable(b);
+}
+
+/* filter, sort and page the book already in the browser */
+function applyLots(){
+  const book=S.book; if(!book) return;
+  const rows=sortRows(filterRows(book.rows,"lots"),S.sort,S.dir);
+  const pages=Math.max(1,Math.ceil(rows.length/100));
+  if(S.page>pages) S.page=pages;
+  const b={ok:true,rows:rows.slice((S.page-1)*100,S.page*100),columns:book.columns,
+    matched:rows.length,total:book.rows.length,pages,
+    totals:totalsJS(rows),totals_all:totalsJS(book.rows),generated:book.generated};
+  S.rows=b.rows; S.meta=b; S.view=rows;
+  syncFilterUI("lots","#lotFilt","#lotChips",()=>{S.page=1;load();});
+  renderKpis(b); renderTable(b);
+}
+
+/* The same arithmetic api/auction.js does on the server, moved here because
+   the rows it has to total are now chosen here. Cost counts on every lot;
+   sold, profit, margin and EV count only on lots that actually sold. */
+function totalsJS(rows){
+  const has=(r,c)=>r[c]!==null&&r[c]!==undefined&&String(r[c]).trim()!=="";
+  let cost=0,sold=0,soldCount=0,costOfSold=0,evOfSold=0;
+  rows.forEach(r=>{
+    if(has(r,"PURCHASE_COST")) cost+=numv(r.PURCHASE_COST);
+    if(has(r,"SOLD_PRICE")&&numv(r.SOLD_PRICE)!==0){
+      sold+=numv(r.SOLD_PRICE); soldCount++;
+      if(has(r,"PURCHASE_COST")) costOfSold+=numv(r.PURCHASE_COST);
+      if(has(r,"ESTIMATED_VALUE")) evOfSold+=numv(r.ESTIMATED_VALUE);
+    }
+  });
+  const profit=sold-costOfSold;
+  return {lots:rows.length,cards:rows.length,cost,sold,sold_count:soldCount,
+    cost_of_sold:costOfSold,profit,
+    margin:sold?(profit/sold)*100:null,
+    ev_of_sold:evOfSold,
+    sold_to_ev:evOfSold?(sold/evOfSold)*100:null};
+}
+
+/* Sorting moved in with the filtering. Blanks sort last whichever way the
+   column is pointed — a column of em-dashes on top of page one told you
+   nothing. */
+function sortRows(rows,key,dir){
+  if(!key) return rows;
+  const d=dir==="asc"?1:-1;
+  let probe=null;
+  for(let i=0;i<rows.length&&probe===null;i++){
+    const v=fval(rows[i],key);
+    if(v!==null&&v!==undefined&&v!=="") probe=v;
+  }
+  const isDate=typeof probe==="string"&&/^\d{4}-\d{2}-\d{2}[T ]/.test(probe);
+  const isNum=!isDate&&(typeof probe==="number"||
+    (probe!==null&&!isNaN(parseFloat(String(probe).replace(/[$,\s]/g,"")))));
+  return rows.slice().sort((a,b)=>{
+    const x=fval(a,key),y=fval(b,key);
+    const bx=x===null||x===undefined||x==="",by=y===null||y===undefined||y==="";
+    if(bx&&by) return 0;
+    if(bx) return 1;
+    if(by) return -1;
+    if(isDate) return (Date.parse(x)-Date.parse(y))*d;
+    if(isNum)  return (numv(x)-numv(y))*d;
+    return String(x).localeCompare(String(y))*d;
+  });
 }
 
 /* ---------- KPIs ---------- */
@@ -668,15 +1200,6 @@ function applyCardAttrs(rows){
   });
   return rows;
 }
-/* true when the saved column choice includes any of the extra fields */
-function needsCardAttrs(){
-  /* check the columns actually in use: the saved choice if there is one, the
-     table's defaults otherwise. Checking only the saved choice meant the
-     default YEAR / GRADER / ROOKIE columns rendered empty on a fresh visit. */
-  const keys = colPref("completed") || COLS.map(c=>c.k);
-  return keys.some(k=>EXTRA_CARD_FIELDS.includes(k));
-}
-
 /* Card 39238 values a lot at its latest cost row even when that row is zero,
    so a few lots arrive costing nothing and reporting a 100% margin. /api/costfix
    returns the corrected cost for exactly those, and they are patched into the
@@ -825,24 +1348,13 @@ function pager(el,page,pages,total,onGo){
   });
 }
 
-/* ---------- breakdown: read the filtered book once, group it here ----------
-   The endpoint pages at 1000 rows, so this walks the pages and caches the
-   result against the current filter string. */
+/* ---------- breakdown ----------
+   The filtered book is already in the browser, so this is the same rows the
+   COMPLETED table is showing, grouped. */
 async function allRows(){
-  const key=filters().toString();
-  if(S.all&&S.allAt===key) return S.all;
-  const out=[]; let off=0, pages=1;
-  do{
-    const p=filters(); p.set("limit","1000"); p.set("offset",String(off));
-    const r=await fetch(API+"?"+p.toString());
-    const b=await r.json();
-    if(!b.ok) throw new Error(b.error||"no data");
-    out.push(...(b.rows||[])); pages=b.pages||1; off+=1000;
-  } while(out.length<1000*pages && off<1000*pages);
-  await costFixes(); applyCostFixes(out);
-  if(needsCardAttrs()){ await cardAttrs(); applyCardAttrs(out); }
-  S.all=out; S.allAt=key;
-  return out;
+  await ensureBook();
+  if(!S.view) applyLots();
+  return S.view||[];
 }
 
 const numv=v=>{const n=parseFloat(String(v==null?"":v).replace(/[$,\s]/g,""));return isNaN(n)?0:n;};
@@ -944,20 +1456,11 @@ async function renderBreak(){
 }
 
 /* ---------- CSV ---------- */
-/* Walk the pipeline endpoint the same way allRows() walks the auction one,
-   so an export from that tab covers the whole filtered view and not just the
-   page on screen. */
+/* Both tabs export what the filter has left, not the page on screen. */
 async function pAllRows(){
   if(!PAPI) return [];
-  const out=[]; let off=0, pages=1;
-  do{
-    const q=pFilters(); q.set("limit","1000"); q.set("offset",String(off));
-    const r=await fetch(PAPI+"?"+q.toString());
-    const b=await r.json();
-    if(!b.ok) throw new Error(b.error||"no data");
-    out.push(...(b.rows||[])); pages=b.pages||1; off+=1000;
-  } while(out.length<1000*pages && off<1000*pages);
-  return out;
+  const book=await pBook();
+  return filterRows(book.rows,pScope());
 }
 
 /* Export the tab you are looking at, as .xlsx.
@@ -999,113 +1502,18 @@ async function exportXlsx(){
   }
 }
 
-/* ---------- compact multi-select ----------
-   Each filter was an 82px <select multiple> needing cmd-click, and six of them
-   made the panel taller than the table. The <select> stays in the DOM as the
-   value store — so everything that reads selectedOptions is untouched — and
-   this draws a one-line button over it that opens a searchable panel. Styles
-   (.msel*) came across with the design system from buying-inventory. */
-function msel(selectId, label){
-  const sel = $(selectId);
-  if(!sel || sel.dataset.msel) return;
-  sel.dataset.msel = "1";
-
-  const wrap = document.createElement("div"); wrap.className = "msel";
-  const btn = document.createElement("button"); btn.type = "button"; btn.className = "mselbtn";
-  const panel = document.createElement("div"); panel.className = "mselpanel";
-  panel.innerHTML = `<input class="mselsearch" placeholder="search ${esc(label.toLowerCase())}" spellcheck="false">
-    <div class="mselopts"></div>
-    <div class="mselfoot"><button class="btn ghost" data-act="none">CLEAR</button>
-      <button class="btn" data-act="done">DONE</button></div>`;
-  sel.parentNode.insertBefore(wrap, sel);
-  wrap.appendChild(sel); wrap.appendChild(btn); wrap.appendChild(panel);
-
-  const search = panel.querySelector(".mselsearch");
-  const list = panel.querySelector(".mselopts");
-  const picked = () => [...sel.selectedOptions].map(o => o.value);
-
-  function label_(){
-    const n = picked().length;
-    btn.textContent = n === 0 ? "any" : n === 1 ? picked()[0] : n + " selected";
-    btn.classList.toggle("has", n > 0);
-  }
-  function draw(){
-    const q = search.value.trim().toLowerCase();
-    const opts = [...sel.options].filter(o => !q || o.value.toLowerCase().includes(q));
-    if(!opts.length){ list.innerHTML = `<div class="mselempty">nothing matches “${esc(search.value)}”</div>`; return; }
-    // chosen values float to the top so they never hide behind a long list
-    opts.sort((a,b) => (b.selected - a.selected));
-    list.innerHTML = opts.slice(0,400).map(o =>
-      `<label class="mselopt"><input type="checkbox" ${o.selected?"checked":""} value="${esc(o.value)}"><span>${esc(o.value)}</span></label>`
-    ).join("");
-    list.querySelectorAll("input").forEach(cb => cb.onchange = () => {
-      const o = [...sel.options].find(x => x.value === cb.value);
-      if(o) o.selected = cb.checked;
-      label_(); sel.dispatchEvent(new Event("change",{bubbles:true}));
-    });
-  }
-  function place(){
-    const r = btn.getBoundingClientRect();
-    panel.style.left = Math.min(r.left, window.innerWidth - 316) + "px";
-    panel.style.top = Math.min(r.bottom + 6, window.innerHeight - 340) + "px";
-  }
-  function open(){
-    $$(".mselpanel.open").forEach(x => x.classList.remove("open"));
-    place(); panel.classList.add("open"); draw(); search.focus();
-  }
-  btn.onclick = e => { e.stopPropagation(); panel.classList.contains("open") ? panel.classList.remove("open") : open(); };
-  search.oninput = draw;
-  search.onkeydown = e => { if(e.key === "Escape") panel.classList.remove("open"); };
-  panel.onclick = e => {
-    e.stopPropagation();
-    const act = e.target.dataset && e.target.dataset.act;
-    if(act === "none"){ [...sel.options].forEach(o => o.selected = false); label_(); draw(); sel.dispatchEvent(new Event("change",{bubbles:true})); }
-    if(act === "done") panel.classList.remove("open");
-  };
-  // the option list is filled after the first fetch, so refresh the label then
-  sel.addEventListener("optionsfilled", label_);
-  label_();
-}
-document.addEventListener("click", () => $$(".mselpanel.open").forEach(x => x.classList.remove("open")));
-window.addEventListener("resize", () => $$(".mselpanel.open").forEach(x => x.classList.remove("open")));
-
-/* collapse a filter panel, and say what is active while it is hidden */
-function filterToggle(togId, bodyId, activeId, read){
-  const tog = $(togId), body = $(bodyId), out = $(activeId);
-  if(!tog) return;
-  const sync = () => {
-    const parts = read();
-    out.textContent = parts.length ? "· " + parts.join(" · ") : "";
-  };
-  tog.onclick = () => {
-    const hidden = body.classList.toggle("hidden");
-    tog.textContent = hidden ? "SHOW" : "HIDE";
-    sync();
-  };
-  document.addEventListener("change", sync);
-  document.addEventListener("input", sync);
-  sync();
-}
-
 /* ---------- pipeline: in auction now, and waiting to be auctioned ----------
    Its own endpoint, scoped to the slabpacks seller account. "In auction" is
    auction.STATUS='active'; "waiting" is items sitting in_marketplace with no
    active auction. An item leaves in_marketplace when its lot goes live, so the
    two sets cannot overlap. COLLECTION is the account's on-screen section. */
 const PAPI = LOCAL ? null : "/api/pipeline";
-const P = {cat:"card", view:"active", page:1, sort:"", dir:"desc", meta:null, facets:{}};
-
-function pFilters(){
-  const q=new URLSearchParams();
-  q.set("view",P.view); q.set("category",P.cat);
-  const put=(k,v)=>{ v=(v||"").trim(); if(v) q.set(k,v); };
-  put(P.cat==="card"?"PLAYER_NAME":"BRAND", $("#pPlayer").value);
-  put(P.cat==="card"?"SET_NAME":"MODEL",      $("#pSet").value);
-  const multi=(el,col)=>{const v=[...el.selectedOptions].map(o=>o.value).filter(Boolean);if(v.length)q.set(col,v.join(","));};
-  multi($("#pColl"),"COLLECTION"); multi($("#pSport"),"SPORT");
-  multi($("#pTag"),"TAG"); multi($("#pGrade"),"GRADE");
-  return q;
-}
+const P = {cat:"card", view:"active", page:1, sort:"", dir:"desc", meta:null, books:{}};
+/* Cards and watches describe nothing in common, and a live lot has fields a
+   waiting one does not, so each of the four tables keeps its own rules
+   rather than carrying a filter somewhere it cannot mean anything. */
+const pScope=()=>"pipe:"+P.cat+":"+P.view;
+const pKey=()=>P.cat+":"+P.view;
 
 /* Cards and watches share no attributes, so each category gets its own
    columns. Watches have no slab image, and no VIEW/ADMIN link — admin has no
@@ -1234,27 +1642,78 @@ function pCell(row,c){
   return cell(row,c);
 }
 
+async function pBook(){
+  const key=pKey();
+  if(P.books[key]) return P.books[key];
+  const book=await bookPages(PAPI,{view:P.view,category:P.cat});
+  P.books[key]=book;
+  buildFields(pScope(),book.columns,book.rows);
+  return book;
+}
+
 async function loadPipe(){
   if(!PAPI){
-    $("#msg").innerHTML='<div class="err">The pipeline needs its own serverless function, which a static local server can’t run — open the deployed site to use this tab.</div>';
+    $("#msg").innerHTML='<div class="err">The pipeline needs its own serverless function, which a static local server can\u2019t run — open the deployed site to use this tab.</div>';
     return;
   }
-  const q=freshen(pFilters());
-  q.set("limit","100"); q.set("offset",String((P.page-1)*100));
-  if(P.sort){ q.set("sort",P.sort); q.set("dir",P.dir); }
-  $("#msg").innerHTML='<div class="bar"><i></i></div>';
+  $("#msg").innerHTML=bar();
   try{
-    const r=await fetch(PAPI+"?"+q.toString());
-    const b=await r.json();
-    if(!b.ok) throw new Error(b.error||"no data");
-    P.meta=b; $("#msg").innerHTML="";
-    pFacets(b); pKpis(b); pTable(b);
+    if(countRules(rulesFor(pScope()))) await pBook();
+    if(P.books[pKey()]) applyPipe(); else await pLoadPage();
+    $("#msg").innerHTML="";
   }catch(e){
     $("#msg").innerHTML='<div class="err">Could not load the pipeline — '+esc(e.message)+'</div>';
   }
 }
 
-/* counts for both pills, so the tab header is honest before you switch views */
+async function pLoadPage(){
+  const q=new URLSearchParams({view:P.view,category:P.cat});
+  q.set("limit","100"); q.set("offset",String((P.page-1)*100));
+  if(P.sort){ q.set("sort",P.sort); q.set("dir",P.dir); }
+  const r=await fetch(PAPI+"?"+freshen(q).toString());
+  const b=await r.json();
+  if(!b.ok) throw new Error(b.error||"no data");
+  P.meta=b;
+  buildFields(pScope(),b.columns||[],b.rows||[]);
+  syncFilterUI(pScope(),"#pipeFilt","#pipeChips",()=>{P.page=1;loadPipe();});
+  pKpis(b); pTable(b);
+}
+
+function applyPipe(){
+  const book=P.books[pKey()]; if(!book) return;
+  const rows=sortRows(filterRows(book.rows,pScope()),P.sort,P.dir);
+  const pages=Math.max(1,Math.ceil(rows.length/100));
+  if(P.page>pages) P.page=pages;
+  const b={ok:true,rows:rows.slice((P.page-1)*100,P.page*100),columns:book.columns,
+    matched:rows.length,total:book.rows.length,pages,
+    totals:pTotalsJS(rows,P.view),generated:book.generated};
+  P.meta=b;
+  syncFilterUI(pScope(),"#pipeFilt","#pipeChips",()=>{P.page=1;loadPipe();});
+  pKpis(b); pTable(b);
+}
+
+/* api/pipeline.js totals(), moved here for the same reason as the book: the
+   rows being totalled are the filtered ones. */
+function pTotalsJS(rows,view){
+  const sum=k=>rows.reduce((a,r)=>a+numv(r[k]),0);
+  const base={count:rows.length,est_value:sum("ESTIMATED_VALUE"),cost:sum("PURCHASE_COST")};
+  if(view==="active"){
+    const bid=sum("CURRENT_BID");
+    const withBids=rows.filter(r=>numv(r.TOTAL_BIDS)>0).length;
+    return Object.assign(base,{
+      pl_at_bid:bid-base.cost,
+      margin_at_bid:bid?((bid-base.cost)/bid)*100:null,
+      current_bid:bid, start_price:sum("START_PRICE"), bids:sum("TOTAL_BIDS"),
+      with_bids:withBids, no_bids:rows.length-withBids,
+      closing_24h:rows.filter(r=>numv(r.HOURS_LEFT)>=0&&numv(r.HOURS_LEFT)<=24).length
+    });
+  }
+  return Object.assign(base,{
+    relists:rows.filter(r=>numv(r.PAST_AUCTIONS)>0).length,
+    margin_at_ev:base.est_value?((base.est_value-base.cost)/base.est_value)*100:null
+  });
+}
+
 async function pCounts(){
   if(!PAPI) return;
   const set=(id,v)=>{ const el=$(id); if(el) el.textContent=v; };
@@ -1276,38 +1735,6 @@ async function pCounts(){
     /* show that it is unknown — a stale 0 reads as a real count */
     fill(other,"—");
   }
-}
-
-let pFacetsDone={};
-function pFacets(b){
-  const fk=P.cat+":"+P.view;
-  if(pFacetsDone[fk]||!b.facets) return;
-  const fill=(el,col)=>{
-    const f=b.facets[col]; if(!f||!el) return;
-    el.innerHTML=f.values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
-  };
-  fill($("#pColl"),"COLLECTION"); fill($("#pTag"),"TAG");
-  /* cards have SPORT and GRADE; watches have neither, so those two filters
-     are hidden rather than left as empty dropdowns */
-  const cardOnly = P.cat==="card";
-  /* walk up to the direct child of .fgrid — closest("div") stops at the .msel
-     wrapper that msel() inserts, which would hide the control but leave its
-     label floating */
-  const field=el=>{ while(el&&el.parentElement&&!el.parentElement.classList.contains("fgrid")) el=el.parentElement; return el; };
-  [["#pSport","SPORT"],["#pGrade","GRADE"]].forEach(([id,col])=>{
-    const box=field($(id));
-    if(box) box.style.display = cardOnly ? "" : "none";
-    if(cardOnly) fill($(id),col);
-  });
-  /* the two text filters target different columns per category */
-  const lbl=(id,text)=>{ const b=field($(id)); const l=b&&b.querySelector("label"); if(l) l.textContent=text; };
-  lbl("#pPlayer", cardOnly?"PLAYER":"BRAND");
-  lbl("#pSet",    cardOnly?"SET":"MODEL");
-  $("#pPlayer").placeholder = cardOnly?"Kobe Bryant":"Rolex";
-  $("#pSet").placeholder    = cardOnly?"Topps Chrome":"Submariner";
-  [["#pColl","section"],["#pTag","tag"]].concat(cardOnly?[["#pSport","sport"],["#pGrade","grade"]]:[])
-    .forEach(([id,lab])=>{ msel(id,lab); $(id).dispatchEvent(new Event("optionsfilled")); });
-  pFacetsDone[fk]=true;
 }
 
 function pKpis(b){
@@ -1360,11 +1787,6 @@ $$(".pill-btn[data-cat]").forEach(btn=>btn.onclick=()=>{
   if(btn.classList.contains("on")) return;
   $$(".pill-btn[data-cat]").forEach(x=>x.classList.remove("on")); btn.classList.add("on");
   P.cat=btn.dataset.cat; P.page=1; P.sort="";
-  /* the filter options differ per category, so clear what was chosen and
-     let the new category's facets repopulate */
-  ["#pPlayer","#pSet"].forEach(x=>$(x).value="");
-  ["#pColl","#pSport","#pTag","#pGrade"].forEach(x=>$$(x+" option").forEach(o=>o.selected=false));
-  pFacetsDone={};
   loadPipe().then(pCounts);
 });
 
@@ -1372,15 +1794,15 @@ $$(".pill-btn[data-pv]").forEach(btn=>btn.onclick=()=>{
   $$(".pill-btn[data-pv]").forEach(x=>x.classList.remove("on")); btn.classList.add("on");
   P.view=btn.dataset.pv; P.page=1; P.sort=""; loadPipe().then(pCounts);
 });
-$("#pApply").onclick=()=>{ P.page=1; loadPipe(); };
-$("#pClear").onclick=()=>{
-  ["#pPlayer","#pSet"].forEach(x=>$(x).value="");
-  ["#pColl","#pSport","#pTag","#pGrade"].forEach(x=>$$(x+" option").forEach(o=>o.selected=false));
-  P.page=1; loadPipe();
+$("#pipeFilt").onclick=async e=>{
+  e.stopPropagation();
+  $("#msg").innerHTML=bar();
+  try{ await pBook(); }
+  catch(err){ $("#msg").innerHTML='<div class="err">Could not read the pipeline — '+esc(err.message)+'</div>'; return; }
+  $("#msg").innerHTML="";
+  openFilterPanel(pScope(), (P.cat==="card"?"CARDS":"WATCHES")+" "+(P.view==="active"?"IN AUCTION":"WAITING"),
+                  ()=>{ P.page=1; applyPipe(); });
 };
-["#pPlayer","#pSet"].forEach(x=>$(x).addEventListener("keydown",e=>{
-  if(e.key==="Enter"){ P.page=1; loadPipe(); }
-}));
 
 
 /* ---------- BLOCKS ----------
@@ -1494,10 +1916,7 @@ $("#lotCols").onclick=(e)=>{
   const b=S.meta||{};
   openColumnPicker("completed", COLS.filter(c=>c.always||!b.columns||(b.columns||[]).includes(c.k)||c.k===""),
                    (b.columns||[]).concat(EXTRA_CARD_FIELDS),
-                   async ()=>{
-                     if(needsCardAttrs()){ await cardAttrs(); applyCardAttrs(S.rows); }
-                     renderTable(S.meta);
-                   });
+                   ()=>renderTable(S.meta));
 };
 $("#pipeCols").onclick=(e)=>{
   e.stopPropagation();
@@ -1602,18 +2021,25 @@ $$(".tab[data-page]").forEach(b=>b.onclick=()=>{
 });
 
 /* ---------- wiring ---------- */
-$("#apply").onclick=()=>{ S.page=1; S.all=null; load(); if(currentPage==="break") renderBreak(); };
-$("#clear").onclick=()=>{
-  ["#fPlayer","#fSet","#fPo","#fFrom","#fTo","#fMinSold","#fMaxSold"].forEach(s=>$(s).value="");
-  ["#fSport","#fGrade","#fStatus","#fTag"].forEach(s=>$$(s+" option").forEach(o=>o.selected=false));
-  S.page=1; S.all=null; load();
+$("#lotFilt").onclick=async e=>{
+  e.stopPropagation();
+  /* the whole book first: a rule that only saw the hundred rows on screen
+     would be answering a different question than the one it asks */
+  $("#msg").innerHTML=bar();
+  try{ await ensureBook(); }
+  catch(err){ $("#msg").innerHTML='<div class="err">Could not read the book — '+esc(err.message)+'</div>'; return; }
+  $("#msg").innerHTML="";
+  openFilterPanel("lots","COMPLETED AUCTIONS",()=>{
+    S.page=1; load();
+    if(currentPage==="break") renderBreak();
+  });
 };
 $("#reload").onclick=async()=>{
   FORCE_FRESH=true;
   const btn=$("#reload"), label=btn.textContent;
   btn.disabled=true; btn.textContent="REFRESHING…";
   try{
-    S.all=null;
+    S.book=null; P.books={};
     if(currentPage==="pipe"){ await loadPipe(); pCounts(); }
     else if(currentPage==="blocks"){ await loadBlocks(); }
     else { await load(); if(currentPage==="break") renderBreak(); }
@@ -1624,34 +2050,9 @@ $("#reload").onclick=async()=>{
 $("#csv").onclick=exportXlsx;
 $("#grpBy").onchange=()=>{ BRK.value=null; renderBreak(); };
 $("#brkBack").onclick=()=>{ BRK.value=null; renderBreak(); };
-["#fPlayer","#fSet","#fPo"].forEach(s=>$(s).addEventListener("keydown",e=>{
-  if(e.key==="Enter"){ S.page=1; S.all=null; load(); }
-}));
-
 /* the design system styles .mark as clickable — send it to the first tab */
 const logo=$("#homeLogo");
 if(logo) logo.onclick=()=>$$('.tab[data-page="lots"]')[0].click();
-
-filterToggle("#fTog","#fBody","#fActive",()=>{
-  const out=[];
-  const t=(id,lab)=>{ const v=($(id).value||"").trim(); if(v) out.push(lab+": "+v); };
-  t("#fPlayer","player"); t("#fSet","set"); t("#fPo","po");
-  [["#fSport","sport"],["#fGrade","grade"],["#fStatus","status"],["#fTag","tag"]].forEach(([id,lab])=>{
-    const n=$(id)?[...$(id).selectedOptions].length:0; if(n) out.push(lab+": "+n);
-  });
-  if($("#fFrom").value||$("#fTo").value) out.push("dates");
-  if($("#fMinSold").value||$("#fMaxSold").value) out.push("price");
-  return out;
-});
-filterToggle("#pTog","#pBody","#pActive",()=>{
-  const out=[];
-  const t=(id,lab)=>{ const v=($(id).value||"").trim(); if(v) out.push(lab+": "+v); };
-  t("#pPlayer","player"); t("#pSet","set");
-  [["#pColl","section"],["#pSport","sport"],["#pTag","tag"],["#pGrade","grade"]].forEach(([id,lab])=>{
-    const n=$(id)?[...$(id).selectedOptions].length:0; if(n) out.push(lab+": "+n);
-  });
-  return out;
-});
 
 load();
 </script>
