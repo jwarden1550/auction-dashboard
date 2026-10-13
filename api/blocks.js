@@ -25,7 +25,12 @@ const TTL_MS = 5 * 60 * 1000;
 const COST_CTE = `
 cost_by_item AS (
   SELECT ITEM_ID,
-         COALESCE(MAX_BY(NULLIF(PURCHASE_COST_CENTS, 0), CREATED_AT),
+         /* MAX_BY returns expr1 OF THE LATEST ROW, so NULLIF(cost,0) there just
+            yields NULL when the latest row is zero — it does not find the
+            latest non-zero row. Nulling the ORDERING expression instead makes
+            MAX_BY skip the zero rows, which is what we want. */
+         COALESCE(MAX_BY(PURCHASE_COST_CENTS,
+                         IFF(COALESCE(PURCHASE_COST_CENTS, 0) <> 0, CREATED_AT, NULL)),
                   MAX_BY(PURCHASE_COST_CENTS, CREATED_AT)) AS purchase_cost_cents
     FROM APP_PROD.PUBLIC.ITEM_COST_ACCOUNTING
    WHERE NOT COALESCE(_SNOWFLAKE_DELETED, FALSE)
