@@ -55,23 +55,31 @@ WHERE NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)`;
 
 async function load(force) {
   if (!force && cache.payload && Date.now() - cache.at < TTL_MS) return cache;
-  const res = await fetch(`${HOST}/api/dataset`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': KEY },
-    body: JSON.stringify({
-      database: DB, type: 'native',
-      native: { query: SQL.replace('{{ACCOUNT}}', esc(ACCOUNT)) },
-      constraints: { 'max-results': 100000, 'max-results-bare-rows': 100000 }
-    })
-  });
-  const body = await res.json().catch(() => null);
-  if (!res.ok || !body || body.error || !body.data) {
-    throw new Error(String((body && (body.error || body.message)) || `HTTP ${res.status}`).slice(0, 300));
+
+  /* Metabase caps an ad-hoc native query at 2,000 bare rows and ignores a
+     requested constraint — the same trap that truncated the waiting view. Walk
+     it with LIMIT/OFFSET and stitch. ORDER BY keeps the paging deterministic. */
+  const PAGE = 2000, MAX_PAGES = 25;
+  let cols = [], rows = [];
+
+  for (let pageNo = 0; pageNo < MAX_PAGES; pageNo++) {
+    const sql = `${SQL.replace('{{ACCOUNT}}', esc(ACCOUNT))}\nORDER BY c.ID\nLIMIT ${PAGE} OFFSET ${pageNo * PAGE}`;
+    const res = await fetch(`${HOST}/api/dataset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': KEY },
+      body: JSON.stringify({ database: DB, type: 'native', native: { query: sql } })
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok || !body || body.error || !body.data) {
+      throw new Error(String((body && (body.error || body.message)) || `HTTP ${res.status}`).slice(0, 300));
+    }
+    if (!cols.length) cols = (body.data.cols || []).map(c => c.name);
+    const batch = body.data.rows || [];
+    rows = rows.concat(batch);
+    if (batch.length < PAGE) break;
   }
-  cache.payload = {
-    cols: (body.data.cols || []).map(c => c.name),
-    rows: body.data.rows || []
-  };
+
+  cache.payload = { cols, rows };
   cache.at = Date.now();
   return cache;
 }

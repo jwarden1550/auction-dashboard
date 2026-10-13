@@ -569,6 +569,7 @@ async function load(){
     S.rows=b.rows||[]; S.meta=b;
     await premierBlocks();
     await costFixes(); applyCostFixes(S.rows);
+    if(needsCardAttrs()){ await cardAttrs(); applyCardAttrs(S.rows); }
     $("#msg").innerHTML="";
     fillFacets(b); renderKpis(b); renderTable(b);
   }catch(e){
@@ -623,6 +624,46 @@ const pubUrl=r=>{
   if(!slug) return "";
   return "https://arenaclub.com/cards/"+slug+"-8AC"+String(num).padStart(9,"0");
 };
+/* The fields card 39238 does not select, fetched from /api/cardattrs and
+   merged on the card id from CARD_URL. Pulled lazily — only when one of these
+   columns is actually switched on — because it is every card the account has
+   auctioned, not just the page. */
+const EXTRA_CARD_FIELDS=["TEAM","YEAR","GRADING_COMPANY","CARD_NUMBER","AC_NUMBER",
+  "PARALLEL_NUMBER","SLAB_TYPE","RARITY","LANGUAGE","EDITION","IS_ROOKIE","IS_RELIC","IS_FULL_ART"];
+let CARDATTRS=null;
+async function cardAttrs(){
+  if(CARDATTRS) return CARDATTRS;
+  if(LOCAL){ CARDATTRS={}; return CARDATTRS; }
+  try{
+    const r=await fetch("/api/cardattrs");
+    const b=await r.json();
+    const map={};
+    if(b.ok){
+      const idx=b.cols.indexOf("CARD_ID");
+      b.rows.forEach(row=>{
+        const o={};
+        b.cols.forEach((c,i)=>{ if(i!==idx) o[c]=row[i]; });
+        map[String(row[idx])]=o;
+      });
+    }
+    CARDATTRS=map;
+  }catch(_){ CARDATTRS={}; }
+  return CARDATTRS;
+}
+function applyCardAttrs(rows){
+  if(!CARDATTRS) return rows;
+  rows.forEach(r=>{
+    const a=CARDATTRS[cardIdOf(r)];
+    if(a) Object.keys(a).forEach(k=>{ if(r[k]===undefined) r[k]=a[k]; });
+  });
+  return rows;
+}
+/* true when the saved column choice includes any of the extra fields */
+function needsCardAttrs(){
+  const saved=colPref("completed");
+  return !!saved && saved.some(k=>EXTRA_CARD_FIELDS.includes(k));
+}
+
 /* Card 39238 values a lot at its latest cost row even when that row is zero,
    so a few lots arrive costing nothing and reporting a 100% margin. /api/costfix
    returns the corrected cost for exactly those, and they are patched into the
@@ -727,7 +768,7 @@ function cell(row,c){
 function renderTable(b){
   const avail=b.columns||[];
   const defs=COLS.filter(c=>c.always||!b.columns||avail.includes(c.k)||c.k==="");
-  const cols=visibleCols("completed",defs,avail);
+  const cols=visibleCols("completed",defs,avail.concat(EXTRA_CARD_FIELDS));
   $("#lotTbl thead").innerHTML="<tr>"+cols.map(c=>{
     const on=S.sort===c.k;
     return `<th ${c.nosort?"":`data-k="${c.k}"`}>${esc(c.t)}${on?`<span class="ar">${S.dir==="asc"?"▲":"▼"}</span>`:""}</th>`;
@@ -779,6 +820,7 @@ async function allRows(){
     out.push(...(b.rows||[])); pages=b.pages||1; off+=1000;
   } while(out.length<1000*pages && off<1000*pages);
   await costFixes(); applyCostFixes(out);
+  if(needsCardAttrs()){ await cardAttrs(); applyCardAttrs(out); }
   S.all=out; S.allAt=key;
   return out;
 }
@@ -1425,7 +1467,11 @@ $("#lotCols").onclick=(e)=>{
   e.stopPropagation();
   const b=S.meta||{};
   openColumnPicker("completed", COLS.filter(c=>c.always||!b.columns||(b.columns||[]).includes(c.k)||c.k===""),
-                   b.columns||[], ()=>renderTable(S.meta));
+                   (b.columns||[]).concat(EXTRA_CARD_FIELDS),
+                   async ()=>{
+                     if(needsCardAttrs()){ await cardAttrs(); applyCardAttrs(S.rows); }
+                     renderTable(S.meta);
+                   });
 };
 $("#pipeCols").onclick=(e)=>{
   e.stopPropagation();
