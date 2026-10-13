@@ -1684,6 +1684,8 @@ const PREMIER_SEC="Premier Auctions";
 const apiCat=()=>P.cat==="premier"?"card":P.cat;
 const inPremier=r=>String(r.COLLECTION||"")===PREMIER_SEC;
 const pKey=()=>apiCat()+":"+P.view;
+const pWhat=()=>(P.cat==="premier"?"premier auctions":P.cat==="watch"?"watches":"cards")+
+               (P.view==="active"?" in auction":" waiting");
 
 /* Cards and watches share no attributes, so each category gets its own
    columns. Watches have no slab image, and no VIEW/ADMIN link — admin has no
@@ -1839,38 +1841,22 @@ async function loadPipe(){
     $("#msg").innerHTML='<div class="err">The pipeline needs its own serverless function, which a static local server can\u2019t run — open the deployed site to use this tab.</div>';
     return;
   }
+  /* already here — switching back is instant */
   if(P.books[pKey()]){ applyPipe(); return; }
-  const wantBook = countRules(rulesFor(pScope()));
-  const what=(P.cat==="premier"?"premier":P.cat==="watch"?"watches":"cards")+
-             (P.view==="active"?" in auction":" waiting");
-  const key = (wantBook?"pipe:book:":"pipe:page:")+pKey();
-  const job = startLoad(key,(wantBook?"Reading all ":"Loading ")+what);
+  /* Each of these is one request: the largest view is 2,273 rows and a page
+     holds 4,000. Fetching a view whole, once, costs no more than the page it
+     used to fetch every single time a pill was clicked — and every switch
+     after that is answered from memory. Cards and premier auctions share a
+     book, so moving between those two never asks for anything at all. */
+  const job = startLoad("pipe:book:"+pKey(),"Loading "+pWhat());
   try{
-    if(wantBook) await pBook();
-    if(P.books[pKey()]) applyPipe(); else await pLoadPage();
+    await pBook();
+    applyPipe();
     endLoad(job);
   }catch(e){
     endLoad(job,false);
     $("#msg").innerHTML='<div class="err">Could not load the pipeline — '+esc(e.message)+'</div>';
   }
-}
-
-async function pLoadPage(){
-  const q=new URLSearchParams({view:P.view,category:apiCat()});
-  /* the endpoint filters on any column it returns, so the page path asks it
-     for the section rather than reading a page and throwing most of it away */
-  if(P.cat==="premier") q.set("COLLECTION",PREMIER_SEC);
-  q.set("limit","100"); q.set("offset",String((P.page-1)*100));
-  if(P.sort){ q.set("sort",P.sort); q.set("dir",P.dir); }
-  const r=await fetch(PAPI+"?"+freshen(q).toString());
-  const got=await r.json();
-  if(!got.ok) throw new Error(got.error||"no data");
-  /* "of N live" should be the premier shelf, not the whole floor */
-  const b = P.cat==="premier" ? {...got, total:got.matched} : got;
-  P.meta=b;
-  buildFields(pScope(),b.columns||[],b.rows||[]);
-  syncFilterUI(pScope(),"#pipeFilt","#pipeChips",()=>{P.page=1;loadPipe();});
-  pKpis(b); pTable(b);
 }
 
 function applyPipe(){
@@ -1921,6 +1907,12 @@ async function pCounts(){
      wasteful and the likeliest way to get a failure. */
   if(P.meta&&P.meta.ok) fill(P.view, fmt(P.meta.total));
   const other = P.view==="active" ? "waiting" : "active";
+  /* if that view has been read already, its count is in memory */
+  const book=P.books[apiCat()+":"+other];
+  if(book){
+    fill(other, fmt((P.cat==="premier"?book.rows.filter(inPremier):book.rows).length));
+    return;
+  }
   try{
     const q=new URLSearchParams({view:other,category:apiCat(),limit:"1"});
     if(P.cat==="premier") q.set("COLLECTION",PREMIER_SEC);
@@ -1984,16 +1976,45 @@ function pTable(b){
   pager($("#pipePager"),P.page,b.pages||1,b.matched||0,pg=>{P.page=pg;loadPipe();});
 }
 
+/* Clicking a pill used to highlight it and then leave the last selection's
+   tiles and rows sitting underneath until the request came back — watches
+   showing 1,292 cards for a second reads as a broken page rather than a
+   loading one. Clear what is now wrong; the loading card says what is
+   coming. Nothing is cleared when the answer is already in memory, so an
+   instant switch does not flicker. */
+/* The two view counts describe a category, so they are wrong the moment
+   another one is picked — even when its rows are already in memory and the
+   switch is instant. */
+function pBlankCounts(){
+  ["#pillActive","#pillWaiting","#pipeTabCount"].forEach(id=>{
+    const el=$(id); if(el) el.textContent="—";
+  });
+}
+function pClear(){
+  const k=$("#pipeKpis"); if(k) k.innerHTML="";
+  const t=$("#pipeTbl");
+  if(t){ t.querySelector("thead").innerHTML=""; t.querySelector("tbody").innerHTML=""; }
+  const pg=$("#pipePager"); if(pg) pg.innerHTML="";
+  const h=$("#pipeHead"); if(h) h.textContent=pWhat().toUpperCase();
+  pBlankCounts();
+  /* the filter chips belong to the category that just left too: each of
+     these tables keeps its own rules, so show the new one's straight away */
+  syncFilterUI(pScope(),"#pipeFilt","#pipeChips",()=>{P.page=1;loadPipe();});
+}
 $$(".pill-btn[data-cat]").forEach(btn=>btn.onclick=()=>{
   if(btn.classList.contains("on")) return;
   $$(".pill-btn[data-cat]").forEach(x=>x.classList.remove("on")); btn.classList.add("on");
   P.cat=btn.dataset.cat; P.page=1; P.sort="";
+  P.books[pKey()] ? pBlankCounts() : pClear();
   loadPipe().then(pCounts);
 });
 
 $$(".pill-btn[data-pv]").forEach(btn=>btn.onclick=()=>{
+  if(btn.classList.contains("on")) return;
   $$(".pill-btn[data-pv]").forEach(x=>x.classList.remove("on")); btn.classList.add("on");
-  P.view=btn.dataset.pv; P.page=1; P.sort=""; loadPipe().then(pCounts);
+  P.view=btn.dataset.pv; P.page=1; P.sort="";
+  if(!P.books[pKey()]) pClear();
+  loadPipe().then(pCounts);
 });
 $("#pipeFilt").onclick=async e=>{
   e.stopPropagation();
