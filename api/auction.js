@@ -43,17 +43,19 @@ const pick = (cols, re) => cols.find(c => re.test(c));
 const COST_RE = /^(purchase_?cost|cost|buy_?price|purchase_?price|acquisition_?cost)$/i;
 const SOLD_RE = /^(sold_?price|sale_?price|sold|price_?sold|realized|hammer)$/i;
 const QTY_RE  = /^(cards|card_?count|total_?cards|qty|quantity|copies)$/i;
+const EV_RE   = /^(estimated_?value|est_?value|ev)$/i;
 
 /** Totals for a set of rows: cards, cost, sold, profit. */
 function totals(rows, cols) {
   const cost = pick(cols, COST_RE), sold = pick(cols, SOLD_RE), qty = pick(cols, QTY_RE);
+  const ev = pick(cols, EV_RE);
   const n = v => {
     const x = parseFloat(String(v == null ? '' : v).replace(/[$,\s]/g, ''));
     return isNaN(x) ? 0 : x;
   };
   const has = (r, c) => c && r[c] !== null && r[c] !== undefined && String(r[c]).trim() !== '';
 
-  let cards = 0, costSum = 0, soldSum = 0, soldCount = 0, costOfSold = 0;
+  let cards = 0, costSum = 0, soldSum = 0, soldCount = 0, costOfSold = 0, evOfSold = 0;
   rows.forEach(r => {
     const units = qty ? (n(r[qty]) || 0) : 1;
     cards += units || 1;
@@ -62,6 +64,7 @@ function totals(rows, cols) {
       soldSum += n(r[sold]);
       soldCount += units || 1;
       if (has(r, cost)) costOfSold += n(r[cost]);
+      if (has(r, ev)) evOfSold += n(r[ev]);
     }
   });
 
@@ -71,6 +74,11 @@ function totals(rows, cols) {
     cost_of_sold: costOfSold, profit,
     // margin on revenue: (sold - cost of sold) / sold
     margin: soldSum ? (profit / soldSum) * 100 : null,
+    // what these lots fetched against what they were estimated at. 100% = sold
+    // exactly at estimate; below means the book is selling under its own EV.
+    // Only lots that actually sold are counted on either side.
+    ev_of_sold: evOfSold,
+    sold_to_ev: evOfSold ? (soldSum / evOfSold) * 100 : null,
     cost_col: cost || null, sold_col: sold || null, qty_col: qty || null
   };
 }
