@@ -135,12 +135,6 @@ tfoot td{position:sticky;bottom:0;z-index:4;background:#0d100d}
 .pill-btn.on{border-color:var(--green);color:var(--green);background:rgba(124,255,79,.07)}
 .pill-btn.on .pd{background:var(--green);box-shadow:0 0 8px var(--green)}
 .pill-btn.on b{color:var(--text)}
-/* the sections sit under the two views they belong to, so they read as a
-   narrowing of them rather than a third thing of the same weight */
-.secpills{margin-top:8px;gap:7px}
-.secpills .pill-btn{padding:7px 14px;font-size:11px;letter-spacing:1.4px}
-.secpills .pill-btn b{font-size:12px}
-.secpills .pill-btn.loading b{opacity:.35}
 #sheetResult table{font-size:12.5px}
 #sheetResult td,#sheetResult th{padding:8px 12px}
 .sheetrow{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
@@ -458,7 +452,6 @@ tr:hover .polink{border-bottom-color:var(--green)}
     <button class="pill-btn" data-pv="waiting"><span class="pd"></span>WAITING<b id="pillWaiting">0</b></button>
   </div>
 
-  <div class="pills secpills hidden" id="pipeSecs"></div>
 
   <div class="card" style="margin-top:14px">
     <div class="card-h"><span id="pipeHead">LOTS</span>
@@ -1567,7 +1560,7 @@ async function exportXlsx(){
    active auction. An item leaves in_marketplace when its lot goes live, so the
    two sets cannot overlap. COLLECTION is the account's on-screen section. */
 const PAPI = LOCAL ? null : "/api/pipeline";
-const P = {cat:"card", view:"active", sec:null, page:1, sort:"", dir:"desc", meta:null, books:{}, loading:{}};
+const P = {cat:"card", view:"active", page:1, sort:"", dir:"desc", meta:null, books:{}, loading:{}};
 /* Cards and watches describe nothing in common, and a live lot has fields a
    waiting one does not, so each of the four tables keeps its own rules
    rather than carrying a filter somewhere it cannot mean anything. */
@@ -1719,47 +1712,6 @@ async function pBook(){
   return P.loading[key];
 }
 
-/* ---------- sections ----------
-   The account keeps adding them — live auction 1 to 5, pending auction 2 and
-   3, Premier Auctions — and a view that only knows "in auction" and "waiting"
-   cannot say which of those a lot is sitting in. These come from the data, so
-   a section created tomorrow is a pill tomorrow, without a deploy. */
-const SECALL="__all__";
-function pSections(){
-  const box=$("#pipeSecs"); if(!box) return;
-  const book=P.books[pKey()];
-  const meta=P.meta||{};
-  /* counts once the book is here; until then the names the endpoint lists,
-     which arrive with the very first page */
-  let names=[], counts=null;
-  if(book){
-    counts={};
-    filterRows(book.rows,pScope()).forEach(r=>{
-      const k=String(r.COLLECTION||"(uncollected)");
-      counts[k]=(counts[k]||0)+1;
-    });
-    names=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]||a.localeCompare(b));
-  }else{
-    const f=(meta.facets||{}).COLLECTION;
-    names=(f&&f.values)||[];
-  }
-  if(names.length<2){ box.classList.add("hidden"); box.innerHTML=""; return; }
-  if(P.sec&&!names.includes(P.sec)) P.sec=null;   /* gone, or filtered away */
-  const total=counts?Object.values(counts).reduce((a,b)=>a+b,0):(meta.matched||0);
-  const pill=(val,label,count)=>
-    `<button class="pill-btn${(P.sec||SECALL)===val?" on":""}${counts?"":" loading"}" data-sec="${esc(val)}">`+
-    `${esc(label)}<b>${counts?fmt(count):"—"}</b></button>`;
-  box.innerHTML=pill(SECALL,"ALL",total)+names.map(nm=>pill(nm,nm,counts?counts[nm]:0)).join("");
-  box.classList.remove("hidden");
-  box.querySelectorAll("[data-sec]").forEach(b=>b.onclick=async()=>{
-    const v=b.dataset.sec;
-    P.sec = v===SECALL ? null : v;
-    P.page=1;
-    if(!P.books[pKey()]){ $("#msg").innerHTML=bar(); await pBook().catch(()=>{}); $("#msg").innerHTML=""; }
-    applyPipe();
-  });
-}
-
 async function loadPipe(){
   if(!PAPI){
     $("#msg").innerHTML='<div class="err">The pipeline needs its own serverless function, which a static local server can\u2019t run — open the deployed site to use this tab.</div>';
@@ -1767,16 +1719,9 @@ async function loadPipe(){
   }
   $("#msg").innerHTML=bar();
   try{
-    if(P.sec||countRules(rulesFor(pScope()))) await pBook();
+    if(countRules(rulesFor(pScope()))) await pBook();
     if(P.books[pKey()]) applyPipe(); else await pLoadPage();
     $("#msg").innerHTML="";
-    /* the counts on the section pills need every row, which the first page is
-       not. Fetch it behind the table rather than in front of it, and fill the
-       counts in when it lands — if the view has not been switched since. */
-    if(!P.books[pKey()]){
-      const was=pKey();
-      pBook().then(()=>{ if(pKey()===was) pSections(); }).catch(()=>{});
-    }
   }catch(e){
     $("#msg").innerHTML='<div class="err">Could not load the pipeline — '+esc(e.message)+'</div>';
   }
@@ -1792,14 +1737,12 @@ async function pLoadPage(){
   P.meta=b;
   buildFields(pScope(),b.columns||[],b.rows||[]);
   syncFilterUI(pScope(),"#pipeFilt","#pipeChips",()=>{P.page=1;loadPipe();});
-  pSections(); pKpis(b); pTable(b);
+  pKpis(b); pTable(b);
 }
 
 function applyPipe(){
   const book=P.books[pKey()]; if(!book) return;
-  let kept=filterRows(book.rows,pScope());
-  if(P.sec) kept=kept.filter(r=>String(r.COLLECTION||"(uncollected)")===P.sec);
-  const rows=sortRows(kept,P.sort,P.dir);
+  const rows=sortRows(filterRows(book.rows,pScope()),P.sort,P.dir);
   const pages=Math.max(1,Math.ceil(rows.length/100));
   if(P.page>pages) P.page=pages;
   const b={ok:true,rows:rows.slice((P.page-1)*100,P.page*100),columns:book.columns,
@@ -1807,7 +1750,7 @@ function applyPipe(){
     totals:pTotalsJS(rows,P.view),generated:book.generated};
   P.meta=b;
   syncFilterUI(pScope(),"#pipeFilt","#pipeChips",()=>{P.page=1;loadPipe();});
-  pSections(); pKpis(b); pTable(b);
+  pKpis(b); pTable(b);
 }
 
 /* api/pipeline.js totals(), moved here for the same reason as the book: the
@@ -1906,13 +1849,13 @@ function pTable(b){
 $$(".pill-btn[data-cat]").forEach(btn=>btn.onclick=()=>{
   if(btn.classList.contains("on")) return;
   $$(".pill-btn[data-cat]").forEach(x=>x.classList.remove("on")); btn.classList.add("on");
-  P.cat=btn.dataset.cat; P.page=1; P.sort=""; P.sec=null;
+  P.cat=btn.dataset.cat; P.page=1; P.sort="";
   loadPipe().then(pCounts);
 });
 
 $$(".pill-btn[data-pv]").forEach(btn=>btn.onclick=()=>{
   $$(".pill-btn[data-pv]").forEach(x=>x.classList.remove("on")); btn.classList.add("on");
-  P.view=btn.dataset.pv; P.page=1; P.sort=""; P.sec=null; loadPipe().then(pCounts);
+  P.view=btn.dataset.pv; P.page=1; P.sort=""; loadPipe().then(pCounts);
 });
 $("#pipeFilt").onclick=async e=>{
   e.stopPropagation();
