@@ -640,7 +640,7 @@ const fval=(r,k)=>{
 
 const FOPS={
   text:[["has","includes"],["!has","does not include"],["is","is"],["!is","is not"],
-        ["sw","starts with"],["anyhas","includes any of"],["any","is any of"],
+        ["any","is any of (csv)"],["none","is none of (csv)"],
         ["empty","is empty"],["!empty","is not empty"]],
   num:[["=","="],["!=","is not"],[">","greater than"],[">=","at least"],
        ["<","less than"],["<=","at most"],["btw","between"],
@@ -650,6 +650,8 @@ const FOPS={
   bool:[["true","is true"],["false","is false"]]
 };
 const opsFor=t=>FOPS[t==="usd"||t==="pct"?"num":t]||FOPS.text;
+/* the two operators whose box holds a list rather than one value */
+const isCsv=o=>o==="any"||o==="none";
 const isNumT=t=>t==="num"||t==="usd"||t==="pct";
 
 /* how many value boxes an operator needs */
@@ -705,6 +707,21 @@ function buildFields(scope,cols,rows){
   return FSCOPE[scope];
 }
 
+/* A datalist matches on the whole box, so once a csv operator has a comma in
+   it the suggestions would be hunting for "football, soc". Rebuilding them
+   with what is already typed as the prefix keeps them offering the next
+   value — and one value on its own still works, which is the point of these
+   two: the same operator reads a single name or a list of them. */
+function csvSuggest(input, vals){
+  const dl=document.getElementById(input.getAttribute("list"));
+  if(!dl||!vals) return;
+  const cut=input.value.lastIndexOf(",");
+  const head=cut<0?"":input.value.slice(0,cut+1)+" ";
+  const taken=head.split(",").map(x=>x.trim().toLowerCase()).filter(Boolean);
+  dl.innerHTML=vals.filter(v=>!taken.includes(v.toLowerCase())).slice(0,400)
+    .map(v=>`<option value="${esc(head+v)}">`).join("");
+}
+
 /* ---------- the rule tree ---------- */
 const FRULES={};
 const FKEY=scope=>"auctiondash.rules."+scope;
@@ -713,6 +730,10 @@ function rulesFor(scope){
   let t=null;
   try{ const raw=localStorage.getItem(FKEY(scope)); if(raw) t=JSON.parse(raw); }catch(_){}
   if(!t||t.k!=="g") t={k:"g",op:"and",items:[]};
+  const GONE={sw:"has",anyhas:"any"};
+  (function walk(nd){ (nd.items||[]).forEach(c=>{
+    if(c.k==="g") walk(c); else if(GONE[c.o]) c.o=GONE[c.o];
+  }); })(t);
   FRULES[scope]=t; return t;
 }
 function saveRules(scope){
@@ -775,9 +796,8 @@ function ruleHit(r,rule){
     case "!has":   return !s.includes(q);
     case "is":     return s===q;
     case "!is":    return s!==q;
-    case "sw":     return s.startsWith(q);
-    case "anyhas": return list().some(x=>s.includes(x));
     case "any":    return list().some(x=>s===x);
+    case "none":   return !list().some(x=>s===x);
   }
   return true;
 }
@@ -859,9 +879,9 @@ function openFilterPanel(scope,title,onApply){
     const box=(which,val)=>{
       if(t==="date"&&rule.o!=="last") return `<input class="fval" type="date" data-v="${which}" data-path="${path.join(".")}" value="${esc(val||"")}">`;
       if(isNumT(t)||rule.o==="last") return `<input class="fval" type="number" step="any" data-v="${which}" data-path="${path.join(".")}" value="${esc(val||"")}" placeholder="${rule.o==="last"?"days":which==="v2"?"max":"value…"}">`;
-      const dl=sc.vals[rule.f];
+      const dl=sc.vals[rule.f], csv=isCsv(rule.o);
       return `<input class="fval" data-v="${which}" data-path="${path.join(".")}" value="${esc(val||"")}"
-        placeholder="value…" spellcheck="false" ${dl?`list="${listId}"`:""}>
+        placeholder="${csv?"value, value, value…":"value…"}" spellcheck="false" ${dl?`list="${listId}"`:""}>
         ${dl?`<datalist id="${listId}">${dl.slice(0,400).map(v=>`<option value="${esc(v)}">`).join("")}</datalist>`:""}`;
     };
     return `<div class="frow">
@@ -948,7 +968,11 @@ function openFilterPanel(scope,title,onApply){
     /* value boxes update the model as you type and never redraw — a redraw
        here would take the caret with it */
     wrap.querySelectorAll("[data-v]").forEach(i=>{
-      i.oninput=()=>{ at(i.dataset.path)[i.dataset.v]=i.value; badge(); };
+      i.oninput=()=>{
+        const r=at(i.dataset.path);
+        r[i.dataset.v]=i.value; badge();
+        if(isCsv(r.o)) csvSuggest(i, sc.vals[r.f]);
+      };
       i.onkeydown=e=>{ if(e.key==="Enter"){ e.preventDefault(); apply(); } };
     });
     wrap.querySelector("[data-act='clear']").onclick=()=>{ root.items=[]; draw(); };
