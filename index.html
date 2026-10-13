@@ -1046,25 +1046,34 @@ const freshen=q=>{ if(FORCE_FRESH){ q.set("fresh","1"); q.set("_",String(Date.no
    parameters for, so the filtering happens here — which only tells the truth
    if everything is here. The first request says how many pages there are and
    the rest go out together, rather than one after another. */
-const BOOKPAGE=1000;
+/* Twelve requests for the book was the slow part, and not because of their
+   size: the endpoint loads the whole question on every call, so twelve at
+   once meant twelve cold functions each pulling all 11,811 rows and building
+   every facet before answering. Four thousand rows a page makes it three,
+   and the first goes on its own so the two behind it meet a warm cache
+   instead of racing it. */
+const BOOKPAGE=4000;
 const bar=note=>'<div class="bar"><i></i></div>'+(note?`<p class="note">${esc(note)}</p>`:"");
 /* Every page of an endpoint, merged. The first request says how many there
    are; the rest go out together rather than one after another. */
 async function bookPages(url, extra){
-  const get=async off=>{
+  const get=async(off,slim)=>{
     const p=new URLSearchParams(extra||"");
     p.set("limit",String(BOOKPAGE)); p.set("offset",String(off));
+    /* every page recomputed the facets and the totals over all 11,811 rows
+       and shipped them back; only the first one is ever read */
+    if(slim) p.set("slim","1");
     const r=await fetch(url+"?"+freshen(p).toString());
     const b=await r.json();
     if(!b.ok) throw new Error(b.error||"the endpoint returned no data");
     return b;
   };
-  const first=await get(0);
+  const first=await get(0,false);
   const pages=Math.max(1,first.pages||1);
   let done=1;
   $("#msg").innerHTML=bar(pages>1?`reading the whole book — ${fmt(first.total||0)} lots, ${pages} pages`:"");
   const rest=await Promise.all(Array.from({length:pages-1},(_,i)=>
-    get((i+1)*BOOKPAGE).then(b=>{
+    get((i+1)*BOOKPAGE,true).then(b=>{
       done++;
       $("#msg").innerHTML=bar(`reading the whole book — page ${done} of ${pages}`);
       return b;

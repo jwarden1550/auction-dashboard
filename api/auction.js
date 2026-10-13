@@ -212,16 +212,24 @@ module.exports = async (req, res) => {
         : String(a[sortCol] ?? '').localeCompare(String(b[sortCol] ?? '')) * dir);
     }
 
-    const limit = Math.min(Number(q.limit) || 100, 1000);
+    // 4,000 rows is about 3.7 MB of JSON — the most that comfortably fits in one
+    // response, and it turns a twelve-request book into three
+    const limit = Math.min(Number(q.limit) || 100, 4000);
     const offset = Math.max(Number(q.offset) || 0, 0);
 
-    const facetCols = cols.filter(x => !isNum[x] && !isDate[x] && !SKIP.test(x));
+    // Facets mean a pass over every row for every text column, and the value
+    // lists are a good slice of the response. A page past the first is only
+    // ever asked for its rows, so ?slim=1 says don't bother.
+    const slim = q.slim === '1';
     const facets = {};
-    facetCols.forEach(col => {
-      const seen = new Set();
-      c.rows.forEach(r => { const v = r[col]; if (v !== null && v !== '') seen.add(String(v)); });
-      facets[col] = { count: seen.size, values: [...seen].sort().slice(0, 300) };
-    });
+    if (!slim) {
+      const facetCols = cols.filter(x => !isNum[x] && !isDate[x] && !SKIP.test(x));
+      facetCols.forEach(col => {
+        const seen = new Set();
+        c.rows.forEach(r => { const v = r[col]; if (v !== null && v !== '') seen.add(String(v)); });
+        facets[col] = { count: seen.size, values: [...seen].sort().slice(0, 300) };
+      });
+    }
 
     return res.status(200).json({
       ok: true,
@@ -233,8 +241,8 @@ module.exports = async (req, res) => {
       facets,
       total: c.rows.length,
       matched: rows.length,
-      totals: totals(rows, cols),          // the current filter
-      totals_all: totals(c.rows, cols),    // everything the question returns
+      totals: slim ? null : totals(rows, cols),       // the current filter
+      totals_all: slim ? null : totals(c.rows, cols),  // the whole question
       limit, offset,
       pages: Math.max(1, Math.ceil(rows.length / limit)),
       rows: rows.slice(offset, offset + limit)
