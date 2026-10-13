@@ -300,6 +300,13 @@ tr:hover .polink{border-bottom-color:var(--green)}
 #lotTbl td.wrap,#brkTbl td.wrap,#pipeTbl td.wrap,#blkTbl td.wrap{white-space:normal;min-width:190px;max-width:330px}
 .thumb{width:34px;height:46px;object-fit:cover;background:var(--panel-2);border:1px solid var(--line);display:block;cursor:zoom-in}
 .pos{color:var(--green)} .neg{color:var(--red)}
+/* With every column switched on these tables run past 4,500px. Pin the
+   identity column so you can still tell which lot a cell belongs to after
+   scrolling right. */
+#lotTbl td.stick,#pipeTbl td.stick{position:sticky;left:0;z-index:2;background:var(--panel)}
+#lotTbl tbody tr:hover td.stick,#pipeTbl tbody tr:hover td.stick{background:var(--panel-2)}
+#lotTbl th.stick,#pipeTbl th.stick{position:sticky;left:0;z-index:4;background:var(--panel-2)}
+#lotTbl td.stick,#pipeTbl td.stick,#lotTbl th.stick,#pipeTbl th.stick{box-shadow:1px 0 0 var(--line)}
 .alink{color:var(--blue);text-decoration:none} .alink:hover{text-decoration:underline}
 .bar{height:3px;background:var(--line);margin-top:20px;overflow:hidden}
 .bar i{display:block;height:100%;width:30%;background:var(--green);animation:sl 1.1s infinite ease-in-out}
@@ -719,6 +726,9 @@ const auctionIdOf=r=>{
   return m?m[1]:null;
 };
 
+/* add the sticky class to an already-built <td> */
+const stickify=(html,on)=>on?html.replace("<td","<td class=\"stick\"").replace('class="stick" class="','class="stick '):html;
+
 function cell(row,c){
   const v=row[c.k];
   switch(c.kind){
@@ -769,12 +779,14 @@ function renderTable(b){
   const avail=b.columns||[];
   const defs=COLS.filter(c=>c.always||!b.columns||avail.includes(c.k)||c.k==="");
   const cols=visibleCols("completed",defs,avail.concat(EXTRA_CARD_FIELDS));
+  const stickKey=(cols.find(c=>c.kind==="wrap")||{}).k;
   $("#lotTbl thead").innerHTML="<tr>"+cols.map(c=>{
     const on=S.sort===c.k;
-    return `<th ${c.nosort?"":`data-k="${c.k}"`}>${esc(c.t)}${on?`<span class="ar">${S.dir==="asc"?"▲":"▼"}</span>`:""}</th>`;
+    const cls=c.k===stickKey?' class="stick"':"";
+    return `<th${cls} ${c.nosort?"":`data-k="${c.k}"`}>${esc(c.t)}${on?`<span class="ar">${S.dir==="asc"?"▲":"▼"}</span>`:""}</th>`;
   }).join("")+"</tr>";
   $("#lotTbl tbody").innerHTML=b.rows.length
-    ? b.rows.map(r=>"<tr>"+cols.map(c=>cell(r,c)).join("")+"</tr>").join("")
+    ? b.rows.map(r=>"<tr>"+cols.map(c=>stickify(cell(r,c),c.k===stickKey)).join("")+"</tr>").join("")
     : `<tr><td colspan="${cols.length}" style="padding:24px;text-align:center;color:var(--muted)">No lots match these filters.</td></tr>`;
   $$("#lotTbl th[data-k]").forEach(th=>th.onclick=()=>{
     const k=th.dataset.k;
@@ -1315,12 +1327,14 @@ function pTable(b){
   const avail=b.columns||[];
   const defs=PCOLS[P.cat][P.view].filter(c=>c.always||!b.columns||avail.includes(c.k));
   const cols=visibleCols("pipe:"+P.cat+":"+P.view,defs,avail);
+  const stickKey=(cols.find(c=>c.kind==="wrap")||{}).k;
   $("#pipeTbl thead").innerHTML="<tr>"+cols.map(c=>{
     const on=P.sort===c.k;
-    return `<th ${c.nosort?"":`data-k="${c.k}"`}>${esc(c.t)}${on?`<span class="ar">${P.dir==="asc"?"▲":"▼"}</span>`:""}</th>`;
+    const cls=c.k===stickKey?' class="stick"':"";
+    return `<th${cls} ${c.nosort?"":`data-k="${c.k}"`}>${esc(c.t)}${on?`<span class="ar">${P.dir==="asc"?"▲":"▼"}</span>`:""}</th>`;
   }).join("")+"</tr>";
   $("#pipeTbl tbody").innerHTML=b.rows.length
-    ? b.rows.map(r=>"<tr>"+cols.map(c=>pCell(r,c)).join("")+"</tr>").join("")
+    ? b.rows.map(r=>"<tr>"+cols.map(c=>stickify(pCell(r,c),c.k===stickKey)).join("")+"</tr>").join("")
     : `<tr><td colspan="${cols.length}" style="padding:24px;text-align:center;color:var(--muted)">Nothing matches these filters.</td></tr>`;
   $$("#pipeTbl th[data-k]").forEach(th=>th.onclick=()=>{
     const k=th.dataset.k;
