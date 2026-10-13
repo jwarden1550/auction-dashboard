@@ -247,6 +247,9 @@ tr:hover .polink{border-bottom-color:var(--green)}
 .state.upcoming{color:var(--blue);border-color:var(--blue-dim)}
 .state.cancelled{color:var(--red);border-color:var(--red-dim)}
 .state.finished{color:var(--muted);opacity:.7}
+.colbtn{background:none;border:1px solid var(--line);color:var(--muted);font-family:var(--mono);
+  font-size:10px;letter-spacing:1.2px;padding:3px 9px;border-radius:5px}
+.colbtn:hover{color:var(--text);border-color:var(--muted)}
 .pills{display:flex;gap:8px}
 .pill-btn b{margin-left:8px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:18px}
@@ -360,7 +363,8 @@ tr:hover .polink{border-bottom-color:var(--green)}
   </div>
 
   <div class="card" style="margin-top:14px">
-    <div class="card-h"><span id="lotHead">COMPLETED AUCTIONS</span></div>
+    <div class="card-h"><span id="lotHead">COMPLETED AUCTIONS</span>
+      <button class="colbtn" id="lotCols">COLUMNS</button></div>
     <div class="card-b" style="padding:0">
       <div class="tscroll">
         <table id="lotTbl"><thead></thead><tbody></tbody></table>
@@ -409,7 +413,8 @@ tr:hover .polink{border-bottom-color:var(--green)}
   </div>
 
   <div class="card" style="margin-top:14px">
-    <div class="card-h"><span id="pipeHead">LOTS</span></div>
+    <div class="card-h"><span id="pipeHead">LOTS</span>
+      <button class="colbtn" id="pipeCols">COLUMNS</button></div>
     <div class="card-b" style="padding:0">
       <div class="tscroll"><table id="pipeTbl"><thead></thead><tbody></tbody></table></div>
     </div>
@@ -720,7 +725,9 @@ function cell(row,c){
 }
 
 function renderTable(b){
-  const cols=COLS.filter(c=>c.always||!b.columns||b.columns.includes(c.k)||c.k==="");
+  const avail=b.columns||[];
+  const defs=COLS.filter(c=>c.always||!b.columns||avail.includes(c.k)||c.k==="");
+  const cols=visibleCols("completed",defs,avail);
   $("#lotTbl thead").innerHTML="<tr>"+cols.map(c=>{
     const on=S.sort===c.k;
     return `<th ${c.nosort?"":`data-k="${c.k}"`}>${esc(c.t)}${on?`<span class="ar">${S.dir==="asc"?"▲":"▼"}</span>`:""}</th>`;
@@ -1263,7 +1270,9 @@ function pKpis(b){
 }
 
 function pTable(b){
-  const cols=PCOLS[P.cat][P.view].filter(c=>c.always||!b.columns||b.columns.includes(c.k));
+  const avail=b.columns||[];
+  const defs=PCOLS[P.cat][P.view].filter(c=>c.always||!b.columns||avail.includes(c.k));
+  const cols=visibleCols("pipe:"+P.cat+":"+P.view,defs,avail);
   $("#pipeTbl thead").innerHTML="<tr>"+cols.map(c=>{
     const on=P.sort===c.k;
     return `<th ${c.nosort?"":`data-k="${c.k}"`}>${esc(c.t)}${on?`<span class="ar">${P.dir==="asc"?"▲":"▼"}</span>`:""}</th>`;
@@ -1411,6 +1420,88 @@ function renderBlockLots(b){
 }
 
 $("#blkBack").onclick=()=>{ BLK.block=null; BLK.name=null; loadBlocks(); };
+
+$("#lotCols").onclick=(e)=>{
+  e.stopPropagation();
+  const b=S.meta||{};
+  openColumnPicker("completed", COLS.filter(c=>c.always||!b.columns||(b.columns||[]).includes(c.k)||c.k===""),
+                   b.columns||[], ()=>renderTable(S.meta));
+};
+$("#pipeCols").onclick=(e)=>{
+  e.stopPropagation();
+  const b=P.meta||{};
+  openColumnPicker("pipe:"+P.cat+":"+P.view,
+                   PCOLS[P.cat][P.view].filter(c=>c.always||!b.columns||(b.columns||[]).includes(c.k)),
+                   b.columns||[], ()=>pTable(P.meta));
+};
+
+
+/* ---------- column picker ----------
+   Each table has a default set; everything else the endpoint returns can be
+   switched on. Choices persist per table in localStorage, wrapped because it
+   throws in private windows. A column the endpoint stops returning simply
+   disappears rather than rendering an empty column. */
+const COLPREF_KEY = k => "cols:" + k;
+function colPref(key){
+  try{ const v=localStorage.getItem(COLPREF_KEY(key)); return v?JSON.parse(v):null; }
+  catch(_){ return null; }
+}
+function setColPref(key,list){
+  try{ localStorage.setItem(COLPREF_KEY(key), JSON.stringify(list)); }catch(_){}
+}
+/* readable label for a column the picker offers but no table defines */
+const niceName = k => k.replace(/_/g," ").replace(/\bAC NUMBER\b/,"AC #")
+  .replace(/\bCARD NUMBER\b/,"CARD #").replace(/\bIS /,"");
+
+/* visible columns = the saved choice, else the table's defaults */
+function visibleCols(key, defs, available){
+  const saved=colPref(key);
+  if(!saved) return defs;
+  const byKey={}; defs.forEach(c=>byKey[c.k]=c);
+  return saved
+    .filter(k=>byKey[k] || (available||[]).includes(k))
+    .map(k=>byKey[k] || {k, t:niceName(k)});
+}
+
+function openColumnPicker(key, defs, available, onApply){
+  const shown=new Set(visibleCols(key,defs,available).map(c=>c.k));
+  const defKeys=defs.map(c=>c.k);
+  /* defaults first, then anything else the endpoint returns */
+  const extras=(available||[]).filter(k=>!defKeys.includes(k) && !/^(PUBLIC_URL|ADMIN_URL|CARD_URL|AUCTION_URL|FRONT_SLAB_PICTURE_URL|AUCTION_ID|ITEM_ID|IS_SHOEBOX)$/.test(k));
+  const all=defKeys.concat(extras.filter(k=>!defKeys.includes(k)));
+
+  const wrap=document.createElement("div");
+  /* deliberately NOT .mselpanel.open: the document-level handler that dismisses
+     filter dropdowns strips .open from every panel, and the opening click
+     bubbles up to it. Own class, explicit display. */
+  wrap.className="mselpanel colpick";
+  wrap.style.cssText="display:block;position:fixed;left:50%;top:12vh;transform:translateX(-50%);width:340px;max-height:72vh;overflow:auto;z-index:200";
+  wrap.innerHTML=`<div style="letter-spacing:1.5px;font-size:11px;color:var(--muted);margin-bottom:8px">CHOOSE COLUMNS</div>
+    <div class="mselopts" style="max-height:52vh">${all.map(k=>{
+      const label=(defs.find(c=>c.k===k)||{}).t || niceName(k);
+      return `<label class="mselopt"><input type="checkbox" value="${esc(k)}" ${shown.has(k)?"checked":""}>
+        <span>${esc(label||k)}</span></label>`;
+    }).join("")}</div>
+    <div class="mselfoot">
+      <button class="btn ghost" data-act="reset">RESET</button>
+      <button class="btn" data-act="done">DONE</button>
+    </div>`;
+  const shade=document.createElement("div");
+  shade.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:199";
+  const close=()=>{ wrap.remove(); shade.remove(); };
+  shade.onclick=e=>{ e.stopPropagation(); close(); };
+  wrap.onclick=e=>{
+    e.stopPropagation();
+    const act=e.target.dataset&&e.target.dataset.act;
+    if(act==="reset"){ setColPref(key,null); try{localStorage.removeItem(COLPREF_KEY(key));}catch(_){} close(); onApply(); }
+    if(act==="done"){
+      const picked=[...wrap.querySelectorAll("input:checked")].map(i=>i.value);
+      setColPref(key, picked.length?picked:defKeys);
+      close(); onApply();
+    }
+  };
+  document.body.appendChild(shade); document.body.appendChild(wrap);
+}
 
 /* ---------- page switching ---------- */
 let currentPage="lots";
