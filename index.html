@@ -536,8 +536,11 @@ const COLS=[
   {k:"MARGIN",       t:"PROFIT $",      kind:"signed"},
   {k:"MARGIN_PCT",   t:"MARGIN %",      kind:"marginpct", nosort:true, always:true},
   {k:"TOTAL_BIDS",   t:"BIDS",          kind:"int"},
-  {k:"AUCTION_STATUS",t:"STATUS"},
-  {k:"PO_NUMBER",    t:"PO"},
+  {k:"TAG",          t:"TAG"},
+  {k:"INSERT",       t:"INSERT",        kind:"wrap"},
+  {k:"YEAR",         t:"YEAR",          always:true},
+  {k:"GRADING_COMPANY",t:"GRADER",      always:true},
+  {k:"IS_ROOKIE",    t:"ROOKIE",        kind:"bool", always:true},
   {k:"PUBLIC_URL",   t:"VIEW",          kind:"viewcalc", nosort:true, always:true},
   {k:"CARD_URL",     t:"ADMIN",         kind:"admin", nosort:true}
 ];
@@ -667,8 +670,11 @@ function applyCardAttrs(rows){
 }
 /* true when the saved column choice includes any of the extra fields */
 function needsCardAttrs(){
-  const saved=colPref("completed");
-  return !!saved && saved.some(k=>EXTRA_CARD_FIELDS.includes(k));
+  /* check the columns actually in use: the saved choice if there is one, the
+     table's defaults otherwise. Checking only the saved choice meant the
+     default YEAR / GRADER / ROOKIE columns rendered empty on a fresh visit. */
+  const keys = colPref("completed") || COLS.map(c=>c.k);
+  return keys.some(k=>EXTRA_CARD_FIELDS.includes(k));
 }
 
 /* Card 39238 values a lot at its latest cost row even when that row is zero,
@@ -738,6 +744,8 @@ function cell(row,c){
       const name=id&&PREMIER?PREMIER[id]:null;
       return `<td class="wrap">${name?esc(name):"<span style=\"opacity:.45\">standard</span>"}</td>`;
     }
+    case "bool":
+      return `<td class="num">${v===true||v==="true"?'<span class="pos">✓</span>':""}</td>`;
     case "viewcalc":{
       const u=pubUrl(row);
       return u?`<td><a class="alink" href="${esc(u)}" target="_blank" rel="noopener">VIEW ↗</a></td>`:`<td></td>`;
