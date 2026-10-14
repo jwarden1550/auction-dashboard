@@ -239,6 +239,11 @@ tr:hover .polink{border-bottom-color:var(--green)}
 
 /* ---------- auction dashboard additions ---------- */
 .sec{display:inline-block;padding:2px 7px;border:1px solid var(--line);font-size:10.5px;letter-spacing:1px}
+/* A sport reads as a colour before it reads as a word, which is the point of
+   a column you scan rather than read. Shape borrowed from .sec; the colour
+   itself is set per row, since the list of sports is the data's to decide. */
+.sport{display:inline-block;padding:2px 8px;border:1px solid;border-radius:4px;
+  font-size:10.5px;letter-spacing:1px;white-space:nowrap}
 .sec.shoebox{color:var(--gold);border-color:var(--gold-dim)}
 .sec.auctions{color:var(--green);border-color:var(--green-dim)}
 .soon{color:var(--red)}
@@ -553,11 +558,40 @@ const S={page:1,sort:"SOLD_AT",dir:"desc",rows:[],meta:null,book:null,view:null}
 
 /* the columns worth showing, in order — anything else the question adds
    still filters and exports, it just doesn't crowd the table */
+/* The four biggest sports get the four most separated hues, so the column
+   reads at a glance; the rest fan out from there. Theme green and red are
+   deliberately absent — in these tables they mean profit and loss, and a
+   sport should not borrow that. Anything not listed takes a stable colour
+   from its own name, so a sport added tomorrow is consistently itself rather
+   than falling back to grey. */
+const SPORT_COLOR={
+  football:"#5CC8FF", basketball:"#FF9B42", pokemon:"#FFD93D", baseball:"#FF6FA5",
+  soccer:"#6FE39B", one_piece:"#C792EA", wrestling:"#E8663D", hockey:"#9BD1FF",
+  combat:"#D4584F", boxing:"#B5705C", racing:"#4DD6C1", golf:"#A3D977",
+  tennis:"#D8E84A", marvel:"#FF5C8A", star_wars:"#9FA8DA",
+  garbage_pail_kids:"#8FBF7F", media:"#AAB4BF", other:"#7F8A96"
+};
+function sportColor(v){
+  const k=String(v||"").trim().toLowerCase();
+  if(!k) return null;
+  if(SPORT_COLOR[k]) return SPORT_COLOR[k];
+  let h=0;
+  for(let i=0;i<k.length;i++) h=(h*31+k.charCodeAt(i))%360;
+  return `hsl(${h},62%,68%)`;
+}
+/* one colour per sport, used at 14% for the fill and 45% for the border */
+function sportCell(v){
+  const c=sportColor(v);
+  if(!c) return '<td>—</td>';
+  return `<td><span class="sport" style="color:${c};border-color:color-mix(in srgb,${c} 45%,transparent);`+
+    `background:color-mix(in srgb,${c} 14%,transparent)">${esc(v)}</span></td>`;
+}
+
 const COLS=[
   {k:"FRONT_SLAB_PICTURE_URL",t:"",     kind:"img",  nosort:true},
   {k:"PLAYER_NAME",  t:"PLAYER",        kind:"wrap"},
   {k:"SET_NAME",     t:"SET",           kind:"wrap"},
-  {k:"SPORT",        t:"SPORT"},
+  {k:"SPORT",        t:"SPORT",        kind:"sport"},
   {k:"GRADE",        t:"GRADE"},
   {k:"PREMIER_BLOCK",t:"BLOCK",         kind:"block", nosort:true, always:true},
   {k:"SOLD_AT",      t:"SOLD",          kind:"date"},
@@ -1398,6 +1432,7 @@ function cell(row,c){
       const name=id&&PREMIER?PREMIER[id]:null;
       return `<td class="wrap">${name?esc(name):"<span style=\"opacity:.45\">standard</span>"}</td>`;
     }
+    case "sport": return sportCell(v);
     case "bool":
       return `<td class="num">${v===true||v==="true"?'<span class="pos">✓</span>':""}</td>`;
     case "viewcalc":{
@@ -1531,7 +1566,7 @@ function brkTable(list,firstHeader,clickable){
   $("#brkTbl thead").innerHTML="<tr>"+head.map((h,i)=>
     `<th${i?' style="text-align:right"':""}>${h||esc(firstHeader)}</th>`).join("")+"</tr>";
   $("#brkTbl tbody").innerHTML=list.map(o=>`<tr${clickable?` data-k="${esc(o.k)}" style="cursor:pointer"`:""}>
-      <td class="wrap">${esc(o.k)}</td>
+      ${firstHeader==="SPORT"?sportCell(o.k).replace("<td>","<td class=\"wrap\">"):`<td class="wrap">${esc(o.k)}</td>`}
       <td class="num">${fmt(o.lots)}</td>
       <td class="num">${fmt(o.soldCount)}</td>
       <td class="num">${usd(o.cost)}</td>
@@ -1673,7 +1708,7 @@ const PCOLS = {
       {k:"SET_NAME",t:"SET",kind:"wrap"},
       {k:"COLLECTION",t:"SECTION",kind:"sec"},
       {k:"PREMIER_BLOCK",t:"BLOCK",kind:"wrap"},
-      {k:"SPORT",t:"SPORT"},
+      {k:"SPORT",t:"SPORT",kind:"sport"},
       {k:"GRADE",t:"GRADE"},
       {k:"TAG",t:"TAG"},
       {k:"INSERT_NAME",t:"INSERT",kind:"wrap"},
@@ -1699,7 +1734,7 @@ const PCOLS = {
       {k:"PLAYER_NAME",t:"PLAYER",kind:"wrap"},
       {k:"SET_NAME",t:"SET",kind:"wrap"},
       {k:"COLLECTION",t:"SECTION",kind:"sec"},
-      {k:"SPORT",t:"SPORT"},
+      {k:"SPORT",t:"SPORT",kind:"sport"},
       {k:"GRADE",t:"GRADE"},
       {k:"TAG",t:"TAG"},
       {k:"INSERT_NAME",t:"INSERT",kind:"wrap"},
