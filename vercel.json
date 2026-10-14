@@ -1,5 +1,13 @@
 {
   "functions": {
     "api/*.js": { "maxDuration": 300 }
-  }
+  },
+  "crons": [
+    { "path": "/api/auction", "schedule": "*/10 13-23 * * 1-5" },
+    { "path": "/api/auction", "schedule": "*/10 0-3 * * 2-6" },
+    { "path": "/api/pipeline?category=card&view=active", "schedule": "*/15 13-23 * * 1-5" },
+    { "path": "/api/pipeline?category=card&view=active", "schedule": "*/15 0-3 * * 2-6" },
+    { "path": "/api/pipeline?category=card&view=waiting", "schedule": "*/15 13-23 * * 1-5" },
+    { "path": "/api/pipeline?category=card&view=waiting", "schedule": "*/15 0-3 * * 2-6" }
+  ]
 }
