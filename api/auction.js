@@ -90,6 +90,11 @@ const SKIP = /url$|^id$|_id$/i;
 async function load(force) {
   // ?fresh=1 (the REFRESH button) skips the cache; everything else reuses it
   if (!force && cache.rows && Date.now() - cache.at < TTL_MS) return cache;
+  // An expired copy is worth more than an error. If the question will not
+  // answer — and it has taken over a minute, which is how readers were
+  // meeting a 504 — serve what was last read and say when it was read; the
+  // "data pulled" stamp already shows its age.
+  const stale = cache.rows ? cache : null;
   // The question is all 11,811 rows and Metabase has taken half a minute to
   // hand them over. Two requests arriving at a cold instance would each start
   // that, and wait twice as long for it; they share the one now.
@@ -111,7 +116,12 @@ async function load(force) {
     cache.at = Date.now();
     return cache;
   })();
-  try { return await inflight; } finally { inflight = null; }
+  try {
+    return await inflight;
+  } catch (e) {
+    if (stale) return stale;
+    throw e;
+  } finally { inflight = null; }
 }
 
 const looksDate = v => {

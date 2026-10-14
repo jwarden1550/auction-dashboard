@@ -558,6 +558,22 @@ const S={page:1,sort:"SOLD_AT",dir:"desc",rows:[],meta:null,book:null,view:null}
 
 /* the columns worth showing, in order — anything else the question adds
    still filters and exports, it just doesn't crowd the table */
+/* When the function runs past its ceiling, Vercel answers with an HTML error
+   page, and asking JSON.parse what it makes of "An error occurred…" produced
+   the unexplained "Unexpected token 'A'" readers were seeing. Every response
+   goes through here, so a failure says what happened and what to do. */
+async function readJson(r){
+  const text=await r.text();
+  try{ return JSON.parse(text); }
+  catch(_){
+    const why = r.status===504 || /FUNCTION_INVOCATION_TIMEOUT/.test(text)
+      ? "the data source took too long to answer — try REFRESH in a minute, it is usually quick once warm"
+      : r.status>=500 ? `the endpoint failed (HTTP ${r.status})`
+      : `the endpoint answered with something that is not data (HTTP ${r.status})`;
+    throw new Error(why);
+  }
+}
+
 /* The four biggest sports get the four most separated hues, so the column
    reads at a glance; the rest fan out from there. Theme green and red are
    deliberately absent — in these tables they mean profit and loss, and a
@@ -1150,7 +1166,7 @@ async function bookPages(url, extra){
        and shipped them back; only the first one is ever read */
     if(slim) p.set("slim","1");
     const r=await fetch(url+"?"+freshen(p).toString());
-    const b=await r.json();
+    const b=await readJson(r);
     if(!b.ok) throw new Error(b.error||"the endpoint returned no data");
     return b;
   };
@@ -1207,7 +1223,7 @@ async function loadPage(){
   p.set("limit","100"); p.set("offset",String((S.page-1)*100));
   p.set("sort",S.sort); p.set("dir",S.dir);
   const r=await fetch(API+"?"+freshen(p).toString());
-  const b=await r.json();
+  const b=await readJson(r);
   if(!b.ok) throw new Error(b.error||"the endpoint returned no data");
   /* Cost corrections and the block names are small and change what the money
      columns say, so the table waits for them. Card attributes are 1.7 MB and
@@ -1343,7 +1359,7 @@ async function cardAttrs(){
   if(LOCAL){ CARDATTRS={}; return CARDATTRS; }
   try{
     const r=await fetch("/api/cardattrs");
-    const b=await r.json();
+    const b=await readJson(r);
     const map={};
     if(b.ok){
       const idx=b.cols.indexOf("CARD_ID");
@@ -1377,7 +1393,7 @@ async function costFixes(){
   if(LOCAL){ COSTFIX={}; return COSTFIX; }
   try{
     const r=await fetch("/api/costfix");
-    const b=await r.json();
+    const b=await readJson(r);
     COSTFIX = b.ok ? (b.costs||{}) : {};
   }catch(_){ COSTFIX={}; }
   return COSTFIX;
@@ -1410,7 +1426,7 @@ async function premierBlocks(){
   if(LOCAL){ PREMIER={}; return PREMIER; }
   try{
     const r=await fetch("/api/premier");
-    const b=await r.json();
+    const b=await readJson(r);
     PREMIER = b.ok ? (b.blocks||{}) : {};
   }catch(_){ PREMIER={}; }
   return PREMIER;
@@ -1926,7 +1942,7 @@ async function pCounts(){
     const q=new URLSearchParams({view:other,category:apiCat(),limit:"1"});
     if(P.cat==="premier") q.set("COLLECTION",PREMIER_SEC);
     const r=await fetch(PAPI+"?"+q.toString());
-    const b=await r.json();
+    const b=await readJson(r);
     if(!b.ok) throw new Error(b.error||"no data");
     fill(other, fmt(P.cat==="premier"?b.matched:b.total));
   }catch(_){
