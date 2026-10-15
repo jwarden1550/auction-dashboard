@@ -167,7 +167,7 @@ WHERE NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
    was enough to list a lot twice — and a double-counted lot is a
    double-counted cost. */
 QUALIFY ROW_NUMBER() OVER (PARTITION BY a.ID ORDER BY c.NUMBER NULLS LAST) = 1
-ORDER BY a.END_AT`,
+ORDER BY a.END_AT, a.ID`,
 
   waiting: `
 WITH cost_by_item AS (
@@ -265,7 +265,7 @@ WHERE NOT COALESCE(i._SNOWFLAKE_DELETED, FALSE)
       )
 /* see the note on the active query: one row per lot, whatever the joins do */
 QUALIFY ROW_NUMBER() OVER (PARTITION BY i.ID ORDER BY c.NUMBER NULLS LAST) = 1
-ORDER BY c.ESTIMATED_VALUE_CENTS DESC NULLS LAST`
+ORDER BY c.ESTIMATED_VALUE_CENTS DESC NULLS LAST, i.ID`
 };
 
 /* Watches carry none of the card attributes — no row in ADMIN.CARDS at all.
@@ -339,7 +339,7 @@ WHERE NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
   AND u.EMAIL = '{{ACCOUNT}}'
   AND a.STATUS = 'active'
   AND a.ITEM_CATEGORY = 'watch'
-ORDER BY a.END_AT`,
+ORDER BY a.END_AT, a.ID`,
 
   waiting: `
 WITH cost_by_item AS (
@@ -397,7 +397,7 @@ WHERE NOT COALESCE(i._SNOWFLAKE_DELETED, FALSE)
            AND a.STATUS = 'active'
            AND NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
       )
-ORDER BY wc.ESTIMATED_VALUE_CENTS DESC NULLS LAST`
+ORDER BY wc.ESTIMATED_VALUE_CENTS DESC NULLS LAST, i.ID`
 };
 
 const BY_CATEGORY = { card: SQL, watch: WATCH_SQL };
@@ -443,8 +443,15 @@ async function loadNow(view, force, category, key) {
 
   // Metabase caps an ad-hoc native query at 2,000 bare rows and ignores a
   // requested constraint, so walk the result with LIMIT/OFFSET and stitch the
-  // pages together. Both queries end in ORDER BY, which makes the paging
-  // deterministic. PAGE stays under the cap; MAX_PAGES is a runaway guard.
+  // pages together. PAGE stays under the cap; MAX_PAGES is a runaway guard.
+  //
+  // Every query ends in an ORDER BY whose last term is a row id, and it has
+  // to: LIMIT/OFFSET over an order with ties is free to break them
+  // differently on each page, which lands the same row on two pages and
+  // drops another entirely. Ordering by close time or estimated value alone
+  // did exactly that — a waiting view of 2,280 lots came back with one
+  // duplicate on one read and four on the next, each duplicate standing in
+  // for a lot that was silently missing.
   const PAGE = 2000, MAX_PAGES = 25;
   let cols = [], rows = [];
 
