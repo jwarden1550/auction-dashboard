@@ -364,19 +364,19 @@ tr:hover .polink{border-bottom-color:var(--green)}
 .pair{display:flex;gap:6px}
 
 .tscroll{overflow:auto;max-height:70vh;border:1px solid var(--line);background:var(--panel)}
-#lotTbl,#brkTbl,#pipeTbl{width:100%;border-collapse:collapse;font-size:12.5px}
-#lotTbl th,#brkTbl th,#pipeTbl th{position:sticky;top:0;z-index:2;background:var(--panel-2);border-bottom:1px solid var(--line);
+#lotTbl,#brkTbl,#pipeTbl,#secTbl{width:100%;border-collapse:collapse;font-size:12.5px}
+#lotTbl th,#brkTbl th,#pipeTbl th,#secTbl th{position:sticky;top:0;z-index:2;background:var(--panel-2);border-bottom:1px solid var(--line);
   padding:9px 11px;text-align:center;font-size:10.5px;letter-spacing:1.3px;color:var(--muted);white-space:nowrap;cursor:pointer;user-select:none}
 /* The sort arrow is appended to the label, so centring the text alone would
    shift the label left every time a column is sorted. The cell centres its
    contents as a unit instead, and the arrow hangs off the end. */
-#lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar{position:absolute;margin-left:4px}
-#lotTbl th:hover,#brkTbl th:hover,#pipeTbl th:hover{color:var(--green)}
-#lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar{color:var(--green)}
-#lotTbl td,#brkTbl td,#pipeTbl td{padding:8px 11px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
-#lotTbl tbody tr:hover,#brkTbl tbody tr:hover,#pipeTbl tbody tr:hover{background:var(--panel-2)}
-#lotTbl td.num,#brkTbl td.num,#pipeTbl td.num{text-align:right;font-variant-numeric:tabular-nums}
-#lotTbl td.wrap,#brkTbl td.wrap,#pipeTbl td.wrap{white-space:normal;min-width:190px;max-width:330px}
+#lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar,#secTbl th .ar{position:absolute;margin-left:4px}
+#lotTbl th:hover,#brkTbl th:hover,#pipeTbl th:hover,#secTbl th:hover{color:var(--green)}
+#lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar,#secTbl th .ar{color:var(--green)}
+#lotTbl td,#brkTbl td,#pipeTbl td,#secTbl td{padding:8px 11px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
+#lotTbl tbody tr:hover,#brkTbl tbody tr:hover,#pipeTbl tbody tr:hover,#secTbl tbody tr:hover{background:var(--panel-2)}
+#lotTbl td.num,#brkTbl td.num,#pipeTbl td.num,#secTbl td.num{text-align:right;font-variant-numeric:tabular-nums}
+#lotTbl td.wrap,#brkTbl td.wrap,#pipeTbl td.wrap,#secTbl td.wrap{white-space:normal;min-width:190px;max-width:330px}
 .thumb{width:34px;height:46px;object-fit:cover;background:var(--panel-2);border:1px solid var(--line);display:block;cursor:zoom-in}
 .pos{color:var(--green)} .neg{color:var(--red)}
 /* With every column switched on these tables run past 4,500px. Pin the
@@ -425,6 +425,7 @@ tr:hover .polink{border-bottom-color:var(--green)}
   <div>
     <button class="tab on" data-page="lots">COMPLETED AUCTIONS</button>
     <button class="tab" data-page="pipe">PIPELINE <span class="count" id="pipeTabCount"></span></button>
+    <button class="tab" data-page="secs">SECTIONS <span class="count" id="secsTabCount"></span></button>
     <button class="tab" data-page="break">BREAKDOWN</button>
   </div>
   <div class="tabtools">
@@ -488,6 +489,24 @@ tr:hover .polink{border-bottom-color:var(--green)}
       <div class="pgbar" id="pipePager"></div>
     </div>
   </div>
+</div>
+
+<!-- ============ SECTIONS ============ -->
+<div id="page-secs" class="hidden">
+  <div class="kpis" id="secKpis"></div>
+
+  <div class="crumb hidden" id="secCrumb">
+    <button class="back" id="secBack" title="Back to all sections">&#8592;</button>
+    <h2 id="secCrumbTitle"></h2>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-h"><span id="secHead">SECTIONS</span></div>
+    <div class="card-b" style="padding:0">
+      <div class="tscroll"><table id="secTbl"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+    </div>
+  </div>
+  <p class="note" id="secNote"></p>
 </div>
 
 <!-- ============ BREAKDOWN ============ -->
@@ -1843,17 +1862,18 @@ function pCell(row,c){
   return cell(row,c);
 }
 
-async function pBook(){
-  const key=pKey();
+async function pBook(cat,view){
+  cat=cat||apiCat(); view=view||P.view;
+  const key=cat+":"+view;
   if(P.books[key]) return P.books[key];
-  /* the section pills ask for this in the background while the first page is
-     already on screen, and a click on one asks again — both wait on the one
-     request rather than starting a second */
+  /* SECTIONS asks for all four of these at once, and a pill click asks for
+     one of them again — they wait on the one request rather than starting a
+     second */
   if(!P.loading[key]){
-    P.loading[key]=bookPages(PAPI,{view:P.view,category:apiCat()})
+    P.loading[key]=bookPages(PAPI,{view,category:cat})
       .then(book=>{
         P.books[key]=book;
-        buildFields(pScope(),book.columns,book.rows);
+        buildFields("pipe:"+(cat==="card"&&P.cat==="premier"?"premier":cat)+":"+view,book.columns,book.rows);
         return book;
       })
       .finally(()=>{ delete P.loading[key]; });
@@ -2051,6 +2071,154 @@ $("#pipeFilt").onclick=async e=>{
 };
 
 
+/* ---------- SECTIONS ----------
+   The account keeps opening new ones — 31 on the waiting side at the last
+   count, live auction 1 to 11 and pending auction 1 to 23, in whatever
+   casing they were typed in. Pills could not hold that many; a table can,
+   and it sorts. One row per section across all four pipeline views, with a
+   click through to the lots inside it. */
+const SEC={into:null, sort:"lots", dir:"desc", rows:null, at:0};
+const SECCOLS=[
+  {k:"k",     t:"SECTION"},
+  {k:"live",  t:"IN AUCTION",    num:true},
+  {k:"wait",  t:"WAITING",       num:true},
+  {k:"lots",  t:"LOTS",          num:true},
+  {k:"cost",  t:"PURCHASE COST", num:true, usd:true},
+  {k:"ev",    t:"EST VALUE",     num:true, usd:true},
+  {k:"bid",   t:"CURRENT BIDS",  num:true, usd:true},
+  {k:"bids",  t:"BIDS",          num:true}
+];
+
+async function loadSections(){
+  if(SEC.rows){ renderSections(); return; }
+  if(!PAPI){
+    $("#msg").innerHTML='<div class="err">Sections need the pipeline function, which a static local server can’t run — open the deployed site.</div>';
+    return;
+  }
+  const job=startLoad("sections","Reading every section");
+  try{
+    /* all four views, because a section is wherever its lots are. Watches
+       are a handful of rows, and whichever pipeline views have been opened
+       are already in memory, so this is rarely four requests. */
+    const books=await Promise.all([
+      pBook("card","active"), pBook("card","waiting"),
+      pBook("watch","active"), pBook("watch","waiting")
+    ]);
+    const by={};
+    const take=(book,live)=>book.rows.forEach(r=>{
+      const k=String(r.COLLECTION||"(uncollected)");
+      const o=by[k]||(by[k]={k,live:0,wait:0,lots:0,cost:0,ev:0,bid:0,bids:0});
+      o[live?"live":"wait"]++; o.lots++;
+      o.cost+=numv(r.PURCHASE_COST); o.ev+=numv(r.ESTIMATED_VALUE);
+      if(live){ o.bid+=numv(r.CURRENT_BID); o.bids+=numv(r.TOTAL_BIDS); }
+    });
+    take(books[0],true); take(books[1],false);
+    take(books[2],true); take(books[3],false);
+    SEC.rows=Object.values(by); SEC.at=Date.now();
+    endLoad(job);
+    renderSections();
+  }catch(e){
+    endLoad(job,false);
+    $("#msg").innerHTML='<div class="err">Could not read the sections — '+esc(e.message)+'</div>';
+  }
+}
+
+const renderSections=()=>SEC.into ? renderSectionLots() : renderSectionList();
+
+function renderSectionList(){
+  $("#secCrumb").classList.add("hidden");
+  const rows=[...(SEC.rows||[])].sort((a,b)=>{
+    const d=SEC.dir==="asc"?1:-1;
+    const x=a[SEC.sort], y=b[SEC.sort];
+    return (typeof x==="string" ? String(x).localeCompare(String(y)) : x-y)*d;
+  });
+  const T=rows.reduce((a,o)=>({live:a.live+o.live,wait:a.wait+o.wait,lots:a.lots+o.lots,
+    cost:a.cost+o.cost,ev:a.ev+o.ev,bid:a.bid+o.bid,bids:a.bids+o.bids}),
+    {live:0,wait:0,lots:0,cost:0,ev:0,bid:0,bids:0});
+
+  const tile=(k,v,sub,cls)=>`<div class="kpi ${cls||""}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub||""}</div></div>`;
+  $("#secKpis").innerHTML=[
+    tile("SECTIONS",fmt(rows.length),"holding at least one lot"),
+    tile("LOTS",fmt(T.lots),`${fmt(T.live)} in auction, ${fmt(T.wait)} waiting`),
+    tile("PURCHASE COST",usd(T.cost),"what they all cost"),
+    tile("EST VALUE",usd(T.ev),"book value across them","gold"),
+    tile("CURRENT BIDS",usd(T.bid),`${fmt(T.bids)} bids on the live ones`,"good")
+  ].join("");
+
+  $("#secHead").textContent="SECTIONS · "+fmt(rows.length);
+  $("#secTbl thead").innerHTML="<tr>"+SECCOLS.map(c=>{
+    const on=SEC.sort===c.k;
+    return `<th data-k="${c.k}">${esc(c.t)}${on?`<span class="ar">${SEC.dir==="asc"?"▲":"▼"}</span>`:""}</th>`;
+  }).join("")+"</tr>";
+  $("#secTbl tbody").innerHTML=rows.map(o=>`<tr data-s="${esc(o.k)}" style="cursor:pointer">`+
+    SECCOLS.map(c=>{
+      const v=o[c.k];
+      if(!c.num) return `<td class="wrap">${esc(v)}</td>`;
+      if(c.usd) return `<td class="num">${v?usdc(v):"—"}</td>`;
+      return `<td class="num">${v?fmt(v):"—"}</td>`;
+    }).join("")+"</tr>").join("");
+  $("#secTbl tfoot").innerHTML=`<tr><td>ALL SECTIONS</td>
+    <td class="num">${fmt(T.live)}</td><td class="num">${fmt(T.wait)}</td>
+    <td class="num">${fmt(T.lots)}</td><td class="num">${usdc(T.cost)}</td>
+    <td class="num">${usdc(T.ev)}</td><td class="num">${usdc(T.bid)}</td>
+    <td class="num">${fmt(T.bids)}</td></tr>`;
+  $$("#secTbl th[data-k]").forEach(th=>th.onclick=()=>{
+    const k=th.dataset.k;
+    if(SEC.sort===k) SEC.dir=SEC.dir==="asc"?"desc":"asc"; else { SEC.sort=k; SEC.dir=k==="k"?"asc":"desc"; }
+    renderSectionList();
+  });
+  $$("#secTbl tbody tr[data-s]").forEach(tr=>tr.onclick=()=>{ SEC.into=tr.dataset.s; renderSectionLots(); });
+  const tc=$("#secsTabCount"); if(tc) tc.textContent=fmt(rows.length);
+  $("#secNote").textContent="Every section holding at least one lot, across cards and watches, in auction and waiting. Click one for what is inside it.";
+}
+
+/* the lots inside one section, read from the books already in memory */
+const SECLOT=[
+  {k:"FRONT_SLAB_PICTURE_URL",t:"",kind:"img",nosort:true},
+  {k:"_WHAT",t:"",kind:"state"},
+  {k:"PLAYER_NAME",t:"PLAYER",kind:"wrap"},
+  {k:"SET_NAME",t:"SET",kind:"wrap"},
+  {k:"SPORT",t:"SPORT",kind:"sport"},
+  {k:"GRADE",t:"GRADE"},
+  {k:"PREMIER_BLOCK",t:"BLOCK",kind:"wrap"},
+  {k:"END_AT",t:"CLOSES",kind:"date"},
+  {k:"PURCHASE_COST",t:"PURCHASE COST",kind:"usd"},
+  {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
+  {k:"CURRENT_BID",t:"CURRENT BID",kind:"usd"},
+  {k:"TOTAL_BIDS",t:"BIDS",kind:"int"},
+  {k:"PUBLIC_URL",t:"VIEW",kind:"view",nosort:true},
+  {k:"ADMIN_URL",t:"ADMIN",kind:"admin",nosort:true}
+];
+function renderSectionLots(){
+  const want=SEC.into, rows=[];
+  [["card","active",1],["card","waiting",0],["watch","active",1],["watch","waiting",0]]
+    .forEach(([c,v,live])=>{
+      const b=P.books[c+":"+v]; if(!b) return;
+      b.rows.forEach(r=>{
+        if(String(r.COLLECTION||"(uncollected)")===want) rows.push(Object.assign({},r,{_WHAT:live?"in auction":"waiting"}));
+      });
+    });
+  /* live ones first, soonest to close at the top */
+  rows.sort((a,b)=>{
+    if((a._WHAT==="in auction")!==(b._WHAT==="in auction")) return a._WHAT==="in auction"?-1:1;
+    return (Date.parse(a.END_AT)||Infinity)-(Date.parse(b.END_AT)||Infinity);
+  });
+  $("#secCrumb").classList.remove("hidden");
+  $("#secCrumbTitle").innerHTML=`${esc(want)} <span class="q">${fmt(rows.length)} LOTS</span>`;
+  $("#secHead").textContent="LOTS IN SECTION · "+fmt(rows.length);
+  $("#secKpis").innerHTML="";
+  $("#secTbl thead").innerHTML="<tr>"+SECLOT.map(c=>`<th>${esc(c.t)}</th>`).join("")+"</tr>";
+  $("#secTbl tbody").innerHTML=rows.length
+    ? rows.map(r=>"<tr>"+SECLOT.map(c=>
+        c.kind==="state"
+          ? `<td><span class="sec ${r._WHAT==="in auction"?"auctions":"shoebox"}">${esc(r._WHAT)}</span></td>`
+          : pCell(r,c)).join("")+"</tr>").join("")
+    : `<tr><td colspan="${SECLOT.length}" style="padding:24px;text-align:center;color:var(--muted)">Nothing in this section now.</td></tr>`;
+  $("#secTbl tfoot").innerHTML="";
+  $("#secNote").textContent="Cards and watches in this section, the live ones first and soonest to close at the top.";
+}
+$("#secBack").onclick=()=>{ SEC.into=null; renderSectionList(); };
+
 $("#lotCols").onclick=(e)=>{
   e.stopPropagation();
   const b=S.meta||{};
@@ -2218,8 +2386,10 @@ $$(".tab[data-page]").forEach(b=>b.onclick=()=>{
   const pg=b.dataset.page; currentPage=pg;
   $("#page-lots").classList.toggle("hidden",pg!=="lots");
   $("#page-break").classList.toggle("hidden",pg!=="break");
+  $("#page-secs").classList.toggle("hidden",pg!=="secs");
   $("#page-pipe").classList.toggle("hidden",pg!=="pipe");
   if(pg==="break") renderBreak();
+  if(pg==="secs") loadSections();
   if(pg==="pipe"){ loadPipe().then(pCounts); }
 });
 
@@ -2241,8 +2411,9 @@ $("#reload").onclick=async()=>{
   const btn=$("#reload"), label=btn.textContent;
   btn.disabled=true; btn.textContent="REFRESHING…";
   try{
-    S.book=null; P.books={};
+    S.book=null; P.books={}; SEC.rows=null;
     if(currentPage==="pipe"){ await loadPipe(); pCounts(); }
+    else if(currentPage==="secs"){ await loadSections(); }
     else { await load(); if(currentPage==="break") renderBreak(); }
   } finally {
     FORCE_FRESH=false; btn.disabled=false; btn.textContent=label;
