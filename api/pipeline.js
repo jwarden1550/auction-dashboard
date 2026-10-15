@@ -146,8 +146,9 @@ LEFT JOIN APP_PROD.PUBLIC.COLLECTIONS col
  AND NOT COALESCE(col._SNOWFLAKE_DELETED, FALSE)
 LEFT JOIN APP_PROD.ADMIN.CARDS c
   ON c.ID = a.ITEM_ID
+ AND NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)
 LEFT JOIN cost_by_item ci ON ci.ITEM_ID = a.ITEM_ID
- AND NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)LEFT JOIN (
+LEFT JOIN (
   /* When the card was last comped. Same source card 39238 uses — the
      estimate_value task — so the two tabs agree. cards.LAST_COMP_VALUE_CENTS
      exists but is written for nothing, so the comp VALUE cannot be shown. */
@@ -161,6 +162,11 @@ WHERE NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
   AND u.EMAIL = '{{ACCOUNT}}'
   AND a.STATUS = 'active'
   AND a.ITEM_CATEGORY = 'card'
+/* One row per lot whatever the joins do. ADMIN.CARDS is joined on id and
+   ought to be one-to-one, but a card id carrying a second, soft-deleted row
+   was enough to list a lot twice — and a double-counted lot is a
+   double-counted cost. */
+QUALIFY ROW_NUMBER() OVER (PARTITION BY a.ID ORDER BY c.NUMBER NULLS LAST) = 1
 ORDER BY a.END_AT`,
 
   waiting: `
@@ -234,8 +240,9 @@ LEFT JOIN APP_PROD.PUBLIC.COLLECTIONS col
  AND NOT COALESCE(col._SNOWFLAKE_DELETED, FALSE)
 LEFT JOIN APP_PROD.ADMIN.CARDS c
   ON c.ID = i.ID
+ AND NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)
 LEFT JOIN cost_by_item ci ON ci.ITEM_ID = i.ID
- AND NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)LEFT JOIN (
+LEFT JOIN (
   /* When the card was last comped. Same source card 39238 uses — the
      estimate_value task — so the two tabs agree. cards.LAST_COMP_VALUE_CENTS
      exists but is written for nothing, so the comp VALUE cannot be shown. */
@@ -256,6 +263,8 @@ WHERE NOT COALESCE(i._SNOWFLAKE_DELETED, FALSE)
            AND a.STATUS = 'active'
            AND NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
       )
+/* see the note on the active query: one row per lot, whatever the joins do */
+QUALIFY ROW_NUMBER() OVER (PARTITION BY i.ID ORDER BY c.NUMBER NULLS LAST) = 1
 ORDER BY c.ESTIMATED_VALUE_CENTS DESC NULLS LAST`
 };
 
