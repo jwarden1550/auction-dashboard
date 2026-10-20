@@ -287,6 +287,8 @@ tr:hover .polink{border-bottom-color:var(--green)}
 .card-h .hbtns{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 /* the sold-date range, back as its own control rather than four clicks into
    the builder — it is the filter reached for most often */
+.lotfresh{margin-left:12px;font-size:10.5px;letter-spacing:1.2px;color:var(--muted);opacity:.6}
+.lotfresh.stale{color:var(--gold);opacity:1}
 .drange{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);
   border-radius:7px;padding:4px 8px;font-size:10.5px;letter-spacing:1.4px;color:var(--muted)}
 .drange.on{border-color:var(--green-dim);color:var(--green)}
@@ -453,7 +455,7 @@ tr:hover .polink{border-bottom-color:var(--green)}
   <div class="kpis" id="kpis"></div>
 
   <div class="card" style="margin-top:16px">
-    <div class="card-h"><span id="lotHead">COMPLETED AUCTIONS</span>
+    <div class="card-h"><span><span id="lotHead">COMPLETED AUCTIONS</span><span class="lotfresh" id="lotFresh"></span></span>
       <span class="hbtns">
         <span class="drange">SOLD
           <input type="date" id="fFrom" title="sold on or after this day">
@@ -1303,6 +1305,9 @@ async function loadPage(){
   buildFields("lots",(b.columns||[]).concat(EXTRA_CARD_FIELDS),b.rows);
   syncFilterUI("lots","#lotFilt","#lotChips",()=>{S.page=1;load();});
   syncDRange();
+  /* a page is not the book, but page one of a newest-first sort opens on the
+     newest sale there is */
+  if(S.page===1 && S.sort==="SOLD_AT" && S.dir==="desc") newestSale(b.rows);
   renderKpis(b); renderTable(b);
   fillInCardAttrs();
 }
@@ -1332,8 +1337,28 @@ function applyLots(){
     totals:totalsJS(rows),totals_all:totalsJS(book.rows),generated:book.generated};
   S.rows=b.rows; S.meta=b; S.view=rows;
   syncFilterUI("lots","#lotFilt","#lotChips",()=>{S.page=1;load();});
-  syncDRange();
+  syncDRange(); newestSale(book.rows);
   renderKpis(b); renderTable(b);
+}
+
+/* How far the book actually runs. The header already says when the data was
+   read, which is not the same thing and was being mistaken for it: the
+   question behind this tab has been known to sit a week behind the auctions
+   that have actually ended, and a date range over it then comes back empty
+   for reasons that look like the range is broken. */
+function newestSale(rows){
+  const el=$("#lotFresh"); if(!el) return;
+  let max="";
+  for(const r of rows){ const d=String(r.SOLD_AT||"").slice(0,10); if(d>max) max=d; }
+  if(!max){ el.textContent=""; el.className="lotfresh"; return; }
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(max);
+  const shown=m?`${+m[2]}/${+m[3]}/${m[1].slice(2)}`:max;
+  const days=Math.floor((Date.now()-Date.parse(max+"T12:00:00"))/864e5);
+  el.textContent="newest sale "+shown+(days>2?` · ${days} days back`:"");
+  el.className="lotfresh"+(days>2?" stale":"");
+  el.title=days>2
+    ? "This tab reads a saved Metabase question. Nothing it has not picked up yet can be filtered or counted here, however recently the data was read."
+    : "";
 }
 
 /* the boxes, the chip and the button state all say the same thing */
