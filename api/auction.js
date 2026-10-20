@@ -80,6 +80,7 @@ SELECT
     c.PARALLEL_NAME,
     c.PARALLEL_TOTAL,
     c.NUMBER                                                        AS "8ac_number",
+    cert.CERT_NUMBER                                                AS CERT_NUMBER,
     i.TAG,
     i.CATEGORY                                                      AS ITEM_CATEGORY,
     CONVERT_TIMEZONE('America/Los_Angeles', a.END_AT)               AS SOLD_AT,
@@ -117,6 +118,15 @@ LEFT JOIN APP_PROD.ADMIN.CARDS c
   ON c.ID = a.ITEM_ID
  AND NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)
 LEFT JOIN cost_by_item ci ON ci.ITEM_ID = a.ITEM_ID
+LEFT JOIN (
+  /* The cert lives in its own admin table, not on cards, and a card can
+     carry more than one row of it — a regrade writes another. Latest wins,
+     and the aggregate means the join cannot fan a lot into two. */
+  SELECT CARD_ID, MAX_BY(CERT_NUMBER, CREATED_AT) AS CERT_NUMBER
+    FROM APP_PROD.ADMIN.CARD_CERT_NUMBER
+   WHERE NOT COALESCE(_SNOWFLAKE_DELETED, FALSE)
+   GROUP BY CARD_ID
+) cert ON cert.CARD_ID = a.ITEM_ID
 WHERE NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
   AND u.EMAIL = '{{ACCOUNT}}'
   AND a.STATUS = 'completed'
