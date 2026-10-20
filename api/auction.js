@@ -20,7 +20,107 @@
 
 const HOST = (process.env.METABASE_HOST || '').replace(/\/$/, '');
 const KEY = process.env.METABASE_API_KEY || '';
-const CARD_ID = Number(process.env.AUCTION_QUESTION || 39238);   // Card Auction
+const DB = Number(process.env.METABASE_DB || 397);
+const ACCOUNT = process.env.AUCTION_ACCOUNT || 'slabpacks@arenaclub.com';
+const esc = s => String(s).replace(/'/g, "''");
+
+/* Completed auctions, read from the warehouse.
+ *
+ * This used to read saved question 39238, which sat a week behind: 13,081
+ * lots whose newest sale was 13 October while the warehouse already had
+ * completed auctions through the 19th. That question belongs to another
+ * collection and is read-only here, so this asks Snowflake the same thing.
+ *
+ * "Completed" means exactly auction.status = 'completed'. Probed against the
+ * account before choosing it: 13,109 completed lots, every one of them
+ * carrying a winning bid and an order, running to the day of the probe.
+ * The other ended states are deliberately not sales — expired_payment (858,
+ * the winner never paid), reserve_not_met (141), cancelled (28),
+ * awaiting_payment (3, not yet settled). expired_payment alone carries
+ * $28.1M of bids against $1.6M across every completed lot, which is reason
+ * enough on its own not to add it to a revenue figure.
+ *
+ * Lineage per the Arena data dictionary: auction.item_id + item_category
+ * (not card_id, retired by the cards→items swap), items for ownership and
+ * section, ADMIN.CARDS for attributes, item_cost_accounting for cost.
+ */
+const SQL = `
+WITH cost_by_item AS (
+  /* One cost per item: the latest row that actually carries a figure,
+     falling back to the latest row when every one is zero. 39238 took the
+     latest row outright, which let a later empty row hide the real
+     acquisition cost. */
+  SELECT ITEM_ID,
+         COALESCE(MAX_BY(PURCHASE_COST_CENTS,
+                         IFF(COALESCE(PURCHASE_COST_CENTS, 0) <> 0, CREATED_AT, NULL)),
+                  MAX_BY(PURCHASE_COST_CENTS, CREATED_AT)) AS purchase_cost_cents,
+         MAX_BY(KIND, CREATED_AT)                          AS cost_kind,
+         COUNT(*)                                          AS cost_rows
+    FROM APP_PROD.PUBLIC.ITEM_COST_ACCOUNTING
+   WHERE NOT COALESCE(_SNOWFLAKE_DELETED, FALSE)
+   GROUP BY ITEM_ID
+)
+SELECT
+    'https://admin.arenaclub.com/auctions/' || a.ID                 AS AUCTION_URL,
+    'https://admin.arenaclub.com/cards/' || a.ITEM_ID || '/estimate-value' AS CARD_URL,
+    c.FRONT_SLAB_PICTURE_URL,
+    c.PLAYER_NAME,
+    c.SET_NAME,
+    c.SPORT,
+    c.OVERALL                                                       AS GRADE,
+    c."INSERT"                                                      AS "INSERT",
+    c.PARALLEL_NAME,
+    c.PARALLEL_TOTAL,
+    c.NUMBER                                                        AS "8ac_number",
+    i.TAG,
+    COALESCE(col.NAME, '(uncollected)')                             AS "COLLECTION",
+    i.CATEGORY                                                      AS ITEM_CATEGORY,
+    CONVERT_TIMEZONE('America/Los_Angeles', a.END_AT)               AS SOLD_AT,
+    c.ESTIMATED_VALUE_CENTS / 100.0                                 AS ESTIMATED_VALUE,
+    ci.purchase_cost_cents / 100.0                                  AS PURCHASE_COST,
+    a.CURRENT_BID_VALUE_CENTS / 100.0                               AS SOLD_PRICE,
+    (a.CURRENT_BID_VALUE_CENTS - c.ESTIMATED_VALUE_CENTS) / 100.0   AS SOLD_VS_EV,
+    a.TOTAL_BIDS,
+    (a.CURRENT_BID_VALUE_CENTS - COALESCE(ci.purchase_cost_cents,0)) / 100.0 AS MARGIN,
+    ci.cost_kind                                                    AS COST_KIND,
+    ci.cost_rows                                                    AS COST_ROW_COUNT,
+    c.TEAM, c."YEAR" AS "YEAR", c.GRADING_COMPANY,
+    c.SET_NUMBER AS CARD_NUMBER, c.NUMBER AS AC_NUMBER,
+    c.PARALLEL_NUMBER, c.SLAB_KIND AS SLAB_TYPE,
+    c."RARITY" AS "RARITY", c."LANGUAGE" AS "LANGUAGE", c."EDITION" AS "EDITION",
+    c.IS_ROOKIE, c.IS_RELIC, c.IS_FULL_ART,
+    COALESCE((SELECT MAX(pb.NAME)
+                FROM APP_PROD.PUBLIC.PREMIER_AUCTIONS pa
+                JOIN APP_PROD.PUBLIC.PREMIER_AUCTION_BLOCKS pb
+                  ON pb.ID = pa.BLOCK_ID
+                 AND NOT COALESCE(pb._SNOWFLAKE_DELETED, FALSE)
+               WHERE pa.AUCTION_ID = a.ID
+                 AND pa.APPROVAL_STATUS = 'approved'
+                 AND NOT COALESCE(pa._SNOWFLAKE_DELETED, FALSE)),
+             'standard')                                            AS PREMIER_BLOCK,
+    a.STATUS                                                        AS AUCTION_STATUS
+FROM APP_PROD.PUBLIC.AUCTION a
+JOIN APP_PROD.PUBLIC.USERS u
+  ON u.ID = a.USER_ID
+ AND NOT COALESCE(u._SNOWFLAKE_DELETED, FALSE)
+LEFT JOIN APP_PROD.PUBLIC.ITEMS i
+  ON i.ID = a.ITEM_ID
+ AND NOT COALESCE(i._SNOWFLAKE_DELETED, FALSE)
+LEFT JOIN APP_PROD.PUBLIC.COLLECTIONS col
+  ON col.ID = i.COLLECTION_ID
+ AND NOT COALESCE(col._SNOWFLAKE_DELETED, FALSE)
+LEFT JOIN APP_PROD.ADMIN.CARDS c
+  ON c.ID = a.ITEM_ID
+ AND NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)
+LEFT JOIN cost_by_item ci ON ci.ITEM_ID = a.ITEM_ID
+WHERE NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
+  AND u.EMAIL = '{{ACCOUNT}}'
+  AND a.STATUS = 'completed'
+/* one row per lot whatever the joins do */
+QUALIFY ROW_NUMBER() OVER (PARTITION BY a.ID ORDER BY c.NUMBER NULLS LAST) = 1
+/* ends on a row id: LIMIT/OFFSET over an order with ties breaks them
+   differently per page, which lands a row on two pages and drops another */
+ORDER BY a.END_AT DESC, a.ID`;
 
 const cache = { at: 0, rows: null, cols: null };
 let inflight = null;
@@ -90,29 +190,45 @@ const SKIP = /url$|^id$|_id$/i;
 async function load(force) {
   // ?fresh=1 (the REFRESH button) skips the cache; everything else reuses it
   if (!force && cache.rows && Date.now() - cache.at < TTL_MS) return cache;
-  // An expired copy is worth more than an error. If the question will not
-  // answer — and it has taken over a minute, which is how readers were
-  // meeting a 504 — serve what was last read and say when it was read; the
-  // "data pulled" stamp already shows its age.
+  // An expired copy is worth more than an error. If the warehouse will not
+  // answer, serve what was last read; the "data pulled" stamp shows its age.
   const stale = cache.rows ? cache : null;
-  // The question is all 11,811 rows and Metabase has taken half a minute to
-  // hand them over. Two requests arriving at a cold instance would each start
-  // that, and wait twice as long for it; they share the one now.
+  // Two requests arriving at a cold instance would each run the whole walk
+  // and wait twice as long for it. They share the one.
   if (!force && inflight) return inflight;
 
   inflight = (async () => {
-    const res = await fetch(`${HOST}/api/card/${CARD_ID}/query/json`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': KEY }
-    });
-    const body = await res.json().catch(() => null);
-    if (!res.ok) throw new Error(`question ${CARD_ID}: HTTP ${res.status}`);
-    if (!Array.isArray(body)) {
-      throw new Error(`question ${CARD_ID}: ${body && body.error ? String(body.error).slice(0, 200) : 'unexpected response'}`);
+    // Metabase caps an ad-hoc native query at 2,000 bare rows and ignores a
+    // requested constraint, so walk it with LIMIT/OFFSET and stitch. The
+    // query's ORDER BY ends on a row id, which is what makes that safe.
+    const PAGE = 2000, MAX_PAGES = 40;
+    const base = SQL.replace('{{ACCOUNT}}', esc(ACCOUNT));
+    let cols = [], rows = [];
+
+    for (let pageNo = 0; pageNo < MAX_PAGES; pageNo++) {
+      const sql = `${base}\nLIMIT ${PAGE} OFFSET ${pageNo * PAGE}`;
+      const res = await fetch(`${HOST}/api/dataset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': KEY },
+        body: JSON.stringify({ database: DB, type: 'native', native: { query: sql } })
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body || body.error || !body.data) {
+        const why = (body && (body.error || body.message)) || `HTTP ${res.status}`;
+        throw new Error(String(why).slice(0, 300));
+      }
+      if (!cols.length) cols = (body.data.cols || []).map(x => x.name);
+      const batch = (body.data.rows || []).map(r => {
+        const o = {};
+        cols.forEach((name, idx) => { o[name] = r[idx]; });
+        return o;
+      });
+      rows = rows.concat(batch);
+      if (batch.length < PAGE) break;          // last page
     }
 
-    cache.rows = body;
-    cache.cols = body.length ? Object.keys(body[0]) : [];
+    cache.rows = rows;
+    cache.cols = cols;
     cache.at = Date.now();
     return cache;
   })();
@@ -167,13 +283,6 @@ module.exports = async (req, res) => {
   if (!HOST || !KEY) {
     noStore();
     return res.status(200).json({ ok: false, error: 'METABASE_HOST / METABASE_API_KEY not set' });
-  }
-  if (!CARD_ID) {
-    noStore();
-    return res.status(200).json({
-      ok: false,
-      error: 'AUCTION_QUESTION not set — add the saved question id as an environment variable'
-    });
   }
 
   try {
@@ -255,7 +364,7 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({
       ok: true,
-      card: CARD_ID,
+      account: ACCOUNT,
       generated: new Date(c.at).toISOString(),
       columns: cols,
       numeric: isNum,
