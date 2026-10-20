@@ -284,7 +284,19 @@ tr:hover .polink{border-bottom-color:var(--green)}
 .card-b.filters{padding:12px 14px}
 
 /* ---------- filter builder ---------- */
-.card-h .hbtns{display:flex;gap:8px;align-items:center}
+.card-h .hbtns{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+/* the sold-date range, back as its own control rather than four clicks into
+   the builder — it is the filter reached for most often */
+.drange{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);
+  border-radius:7px;padding:4px 8px;font-size:10.5px;letter-spacing:1.4px;color:var(--muted)}
+.drange.on{border-color:var(--green-dim);color:var(--green)}
+.drange input{background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+  font-family:var(--mono);font-size:11.5px;padding:4px 6px;border-radius:5px;color-scheme:dark}
+.drange input:focus{outline:none;border-color:var(--green-dim)}
+.drange .dto{opacity:.55;letter-spacing:1px}
+.dclear{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;
+  line-height:1;padding:0 2px;font-family:var(--mono)}
+.dclear:hover{color:var(--red)}
 .colbtn.on{color:var(--green);border-color:var(--green-dim)}
 .fcount{display:inline-block;margin-left:7px;background:var(--green);color:#000;
   border-radius:999px;padding:0 7px;font-size:11px;line-height:17px;min-width:17px;text-align:center}
@@ -443,6 +455,12 @@ tr:hover .polink{border-bottom-color:var(--green)}
   <div class="card" style="margin-top:16px">
     <div class="card-h"><span id="lotHead">COMPLETED AUCTIONS</span>
       <span class="hbtns">
+        <span class="drange">SOLD
+          <input type="date" id="fFrom" title="sold on or after this day">
+          <span class="dto">to</span>
+          <input type="date" id="fTo" title="sold on or before this day">
+          <button class="dclear hidden" id="fDclear" title="clear the dates">&times;</button>
+        </span>
         <button class="colbtn" id="lotFilt">FILTER<span class="fcount hidden">0</span></button>
         <button class="colbtn" id="lotCols">COLUMNS</button>
       </span></div>
@@ -1094,6 +1112,36 @@ function syncFilterUI(scope,btnId,chipId,onApply){
   }
 }
 
+/* ---------- the sold-date range ----------
+   It has its own boxes rather than living in the builder, because it is the
+   one filter asked for on nearly every visit. It still filters the same way
+   everything else does — over the whole book, here — and it shows up in the
+   same chip row, so there is one place to see what the table is being cut
+   down by. */
+const DRANGE_KEY="auctiondash.sold";
+function dRange(){
+  try{ return JSON.parse(localStorage.getItem(DRANGE_KEY))||{}; }catch(_){ return {}; }
+}
+function setDRange(from,to){
+  try{
+    if(from||to) localStorage.setItem(DRANGE_KEY,JSON.stringify({from:from||"",to:to||""}));
+    else localStorage.removeItem(DRANGE_KEY);
+  }catch(_){}
+}
+const hasDRange=()=>{ const d=dRange(); return !!(d.from||d.to); };
+/* compares whole days, so "to" includes everything that sold that day */
+function inDRange(r){
+  const d=dRange();
+  if(!d.from && !d.to) return true;
+  const v=String(r.SOLD_AT||"");
+  if(!v) return false;
+  const day=v.slice(0,10);
+  if(d.from && day<d.from) return false;
+  if(d.to   && day>d.to)   return false;
+  return true;
+}
+const dRangeRows=rows=>hasDRange()?rows.filter(inDRange):rows;
+
 /* ---------- loading, with an estimate from experience ----------
    An honest estimate can only come from how long this has taken before, so
    every finished load is timed and kept. The median of the last five is what
@@ -1223,7 +1271,7 @@ async function ensureBook(){
 
 async function load(){
   if(S.book){ applyLots(); return; }          // nothing to wait for
-  const wantBook = countRules(rulesFor("lots"));
+  const wantBook = countRules(rulesFor("lots")) || hasDRange();
   const key = wantBook ? "lots:book" : "lots:page";
   const job = startLoad(key, wantBook ? "Reading the whole book" : "Loading Auctions");
   try{
@@ -1254,6 +1302,7 @@ async function loadPage(){
   S.rows=b.rows; S.meta=b; S.view=null;
   buildFields("lots",(b.columns||[]).concat(EXTRA_CARD_FIELDS),b.rows);
   syncFilterUI("lots","#lotFilt","#lotChips",()=>{S.page=1;load();});
+  syncDRange();
   renderKpis(b); renderTable(b);
   fillInCardAttrs();
 }
@@ -1275,7 +1324,7 @@ function fillInCardAttrs(){
 /* filter, sort and page the book already in the browser */
 function applyLots(){
   const book=S.book; if(!book) return;
-  const rows=sortRows(filterRows(book.rows,"lots"),S.sort,S.dir);
+  const rows=sortRows(dRangeRows(filterRows(book.rows,"lots")),S.sort,S.dir);
   const pages=Math.max(1,Math.ceil(rows.length/100));
   if(S.page>pages) S.page=pages;
   const b={ok:true,rows:rows.slice((S.page-1)*100,S.page*100),columns:book.columns,
@@ -1283,7 +1332,38 @@ function applyLots(){
     totals:totalsJS(rows),totals_all:totalsJS(book.rows),generated:book.generated};
   S.rows=b.rows; S.meta=b; S.view=rows;
   syncFilterUI("lots","#lotFilt","#lotChips",()=>{S.page=1;load();});
+  syncDRange();
   renderKpis(b); renderTable(b);
+}
+
+/* the boxes, the chip and the button state all say the same thing */
+function syncDRange(){
+  const d=dRange(), f=$("#fFrom"), t=$("#fTo"), wrap=$(".drange"), x=$("#fDclear");
+  if(!f) return;
+  if(document.activeElement!==f) f.value=d.from||"";
+  if(document.activeElement!==t) t.value=d.to||"";
+  const on=hasDRange();
+  if(wrap) wrap.classList.toggle("on",on);
+  if(x) x.classList.toggle("hidden",!on);
+  const box=$("#lotChips");
+  if(!box) return;
+  box.querySelectorAll(".datechip").forEach(c=>c.remove());
+  if(on){
+    /* formatted from the string itself: day() parses to UTC midnight, which
+       renders as the day before once a western timezone is applied */
+    const sd=v=>{ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v||""); return m?`${+m[2]}/${+m[3]}/${m[1].slice(2)}`:v; };
+    const label = d.from && d.to ? `${sd(d.from)} – ${sd(d.to)}`
+                : d.from ? `on or after ${sd(d.from)}`
+                : `on or before ${sd(d.to)}`;
+    const chip=document.createElement("span");
+    chip.className="fchip datechip";
+    chip.innerHTML=`sold ${esc(label)} <button title="clear the dates">×</button>`;
+    chip.querySelector("button").onclick=()=>{ setDRange("",""); S.page=1; load(); };
+    box.insertBefore(chip, box.firstChild);
+    box.classList.remove("hidden");
+  }else if(!countRules(rulesFor("lots"))){
+    box.classList.add("hidden");
+  }
 }
 
 /* The same arithmetic api/auction.js does on the server, moved here because
@@ -2394,6 +2474,12 @@ $$(".tab[data-page]").forEach(b=>b.onclick=()=>{
 });
 
 /* ---------- wiring ---------- */
+["#fFrom","#fTo"].forEach(id=>{
+  const el=$(id); if(!el) return;
+  el.onchange=()=>{ setDRange($("#fFrom").value,$("#fTo").value); S.page=1; load(); };
+});
+$("#fDclear").onclick=()=>{ setDRange("",""); S.page=1; load(); };
+
 $("#lotFilt").onclick=async e=>{
   e.stopPropagation();
   /* the whole book first: a rule that only saw the hundred rows on screen
