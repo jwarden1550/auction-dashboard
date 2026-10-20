@@ -545,7 +545,9 @@ tr:hover .polink{border-bottom-color:var(--green)}
         <option value="AUCTION_STATUS">STATUS</option>
         <option value="TAG">TAG</option>
         <option value="SET_NAME">SET</option>
-        <option value="PO_NUMBER">PO NUMBER</option>
+        <option value="COLLECTION">SECTION</option>
+        <option value="PREMIER_BLOCK">BLOCK</option>
+        <option value="GRADING_COMPANY">GRADER</option>
       </select>
     </div>
     <div class="card-b" style="padding:0">
@@ -1264,8 +1266,7 @@ async function ensureBook(){
   if(S.book) return S.book;
   /* the book exists to answer rules, and a rule can ask about any of the
      attribute fields, so this one does wait for them */
-  const [book]=await Promise.all([bookPages(API),premierBlocks(),costFixes(),cardAttrs()]);
-  applyCostFixes(book.rows); applyCardAttrs(book.rows);
+  const [book]=await Promise.all([bookPages(API),premierBlocks()]);
   S.book=book;
   buildFields("lots",book.columns.concat(EXTRA_CARD_FIELDS),book.rows);
   return book;
@@ -1298,9 +1299,7 @@ async function loadPage(){
      columns say, so the table waits for them. Card attributes are 1.7 MB and
      have taken 19 seconds — the table used to sit behind that before drawing
      a single row. It draws first now and they land into it. */
-  await Promise.all([premierBlocks(),costFixes()]);
-  applyCostFixes(b.rows);
-  if(CARDATTRS) applyCardAttrs(b.rows);
+  await premierBlocks();
   S.rows=b.rows; S.meta=b; S.view=null;
   buildFields("lots",(b.columns||[]).concat(EXTRA_CARD_FIELDS),b.rows);
   syncFilterUI("lots","#lotFilt","#lotChips",()=>{S.page=1;load();});
@@ -1309,21 +1308,6 @@ async function loadPage(){
      newest sale there is */
   if(S.page===1 && S.sort==="SOLD_AT" && S.dir==="desc") newestSale(b.rows);
   renderKpis(b); renderTable(b);
-  fillInCardAttrs();
-}
-
-/* The attribute columns — year, grader, rookie, team, parallel, the rest —
-   arrive after the table is already up, so they are filled into what is on
-   screen rather than held in front of it. Redraws only if the page that
-   asked is still the page being looked at. */
-function fillInCardAttrs(){
-  if(CARDATTRS) return;
-  const was=S.meta;
-  cardAttrs().then(()=>{
-    if(S.meta!==was) return;          // moved on; that page fills its own
-    applyCardAttrs(S.rows);
-    renderTable(S.meta);
-  }).catch(()=>{});
 }
 
 /* filter, sort and page the book already in the browser */
@@ -1471,74 +1455,18 @@ const pubUrl=r=>{
   if(!slug) return "";
   return "https://arenaclub.com/cards/"+slug+"-8AC"+String(num).padStart(9,"0");
 };
-/* The fields card 39238 does not select, fetched from /api/cardattrs and
-   merged on the card id from CARD_URL. Pulled lazily — only when one of these
-   columns is actually switched on — because it is every card the account has
-   auctioned, not just the page. */
+/* The card attributes the warehouse read brings down with every row. Kept as
+   a list because the column picker offers them, and a column the endpoint
+   stops returning should disappear rather than render empty. They used to
+   arrive separately, from /api/cardattrs, because question 39238 did not
+   select them. */
 const EXTRA_CARD_FIELDS=["TEAM","YEAR","GRADING_COMPANY","CARD_NUMBER","AC_NUMBER",
   "PARALLEL_NUMBER","SLAB_TYPE","RARITY","LANGUAGE","EDITION","IS_ROOKIE","IS_RELIC","IS_FULL_ART"];
-let CARDATTRS=null;
-async function cardAttrs(){
-  if(CARDATTRS) return CARDATTRS;
-  if(LOCAL){ CARDATTRS={}; return CARDATTRS; }
-  try{
-    const r=await fetch("/api/cardattrs");
-    const b=await readJson(r);
-    const map={};
-    if(b.ok){
-      const idx=b.cols.indexOf("CARD_ID");
-      b.rows.forEach(row=>{
-        const o={};
-        b.cols.forEach((c,i)=>{ if(i!==idx) o[c]=row[i]; });
-        map[String(row[idx])]=o;
-      });
-    }
-    CARDATTRS=map;
-  }catch(_){ CARDATTRS={}; }
-  return CARDATTRS;
-}
-function applyCardAttrs(rows){
-  if(!CARDATTRS) return rows;
-  rows.forEach(r=>{
-    const a=CARDATTRS[cardIdOf(r)];
-    if(a) Object.keys(a).forEach(k=>{ if(r[k]===undefined) r[k]=a[k]; });
-  });
-  return rows;
-}
-/* Card 39238 values a lot at its latest cost row even when that row is zero,
-   so a few lots arrive costing nothing and reporting a 100% margin. /api/costfix
-   returns the corrected cost for exactly those, and they are patched into the
-   rows on arrival — so every downstream reader (table, breakdown, export)
-   computes from the same cost the pipeline uses, rather than each applying its
-   own correction. */
-let COSTFIX=null;
-async function costFixes(){
-  if(COSTFIX) return COSTFIX;
-  if(LOCAL){ COSTFIX={}; return COSTFIX; }
-  try{
-    const r=await fetch("/api/costfix");
-    const b=await readJson(r);
-    COSTFIX = b.ok ? (b.costs||{}) : {};
-  }catch(_){ COSTFIX={}; }
-  return COSTFIX;
-}
+
 const cardIdOf=r=>{
   const m=String(r.CARD_URL||"").match(/cards\/([0-9a-f-]{36})/i);
   return m?m[1]:null;
 };
-function applyCostFixes(rows){
-  if(!COSTFIX) return rows;
-  rows.forEach(r=>{
-    const id=cardIdOf(r);
-    const fixed=id!=null?COSTFIX[id]:undefined;
-    if(fixed===undefined||fixed===null) return;
-    r.PURCHASE_COST=fixed;
-    r.MARGIN=numv(r.SOLD_PRICE)-fixed;   // the endpoint's MARGIN is profit in dollars
-    r.COST_CORRECTED=true;
-  });
-  return rows;
-}
-
 /* COMPLETED AUCTIONS reads Metabase card 39238, which does not expose the
    premier block. It does return AUCTION_URL, which ends in the auction id, so
    the block is joined here from /api/premier — a few hundred rows, fetched
