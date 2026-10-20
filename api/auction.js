@@ -41,8 +41,16 @@ const esc = s => String(s).replace(/'/g, "''");
  * enough on its own not to add it to a revenue figure.
  *
  * Lineage per the Arena data dictionary: auction.item_id + item_category
- * (not card_id, retired by the cards→items swap), items for ownership and
- * section, ADMIN.CARDS for attributes, item_cost_accounting for cost.
+ * (not card_id, retired by the cards→items swap), items for the tag,
+ * ADMIN.CARDS for attributes, item_cost_accounting for cost.
+ *
+ * No section here, deliberately. items.collection_id is where the item sits
+ * NOW, and a completed auction has moved to whoever won it — reading it gave
+ * 312 different "sections" across 2,000 lots, almost all of them buyers'
+ * own collections: Shoebox, PC, "GEMS 💎", "NBA Under $25". Which section
+ * the account ran the lot FROM is not recorded anywhere once it sells, so
+ * this does not pretend to know it. PREMIER_BLOCK is the auction's own and
+ * survives the sale, which is why that one is here.
  */
 const SQL = `
 WITH cost_by_item AS (
@@ -73,7 +81,6 @@ SELECT
     c.PARALLEL_TOTAL,
     c.NUMBER                                                        AS "8ac_number",
     i.TAG,
-    COALESCE(col.NAME, '(uncollected)')                             AS "COLLECTION",
     i.CATEGORY                                                      AS ITEM_CATEGORY,
     CONVERT_TIMEZONE('America/Los_Angeles', a.END_AT)               AS SOLD_AT,
     c.ESTIMATED_VALUE_CENTS / 100.0                                 AS ESTIMATED_VALUE,
@@ -106,9 +113,6 @@ JOIN APP_PROD.PUBLIC.USERS u
 LEFT JOIN APP_PROD.PUBLIC.ITEMS i
   ON i.ID = a.ITEM_ID
  AND NOT COALESCE(i._SNOWFLAKE_DELETED, FALSE)
-LEFT JOIN APP_PROD.PUBLIC.COLLECTIONS col
-  ON col.ID = i.COLLECTION_ID
- AND NOT COALESCE(col._SNOWFLAKE_DELETED, FALSE)
 LEFT JOIN APP_PROD.ADMIN.CARDS c
   ON c.ID = a.ITEM_ID
  AND NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)
