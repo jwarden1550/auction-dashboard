@@ -113,6 +113,7 @@ SELECT
     c.PARALLEL_NUMBER                                               AS PARALLEL_NUMBER,
     c.PARALLEL_TOTAL                                                AS PARALLEL_TOTAL,
     c.SLAB_KIND                                                     AS SLAB_TYPE,
+    cert.CERT_NUMBER                                                AS CERT_NUMBER,
     c."RARITY"                                                      AS "RARITY",
     c."LANGUAGE"                                                    AS "LANGUAGE",
     c."EDITION"                                                     AS "EDITION",
@@ -147,6 +148,15 @@ LEFT JOIN APP_PROD.PUBLIC.COLLECTIONS col
 LEFT JOIN APP_PROD.ADMIN.CARDS c
   ON c.ID = a.ITEM_ID
  AND NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)
+LEFT JOIN (
+  /* The cert lives in its own admin table, not on cards, and a regrade
+     writes another row — latest wins, through an aggregate so the join
+     cannot fan a lot into two. */
+  SELECT CARD_ID, MAX_BY(CERT_NUMBER, CREATED_AT) AS CERT_NUMBER
+    FROM APP_PROD.ADMIN.CARD_CERT_NUMBER
+   WHERE NOT COALESCE(_SNOWFLAKE_DELETED, FALSE)
+   GROUP BY CARD_ID
+) cert ON cert.CARD_ID = a.ITEM_ID
 LEFT JOIN cost_by_item ci ON ci.ITEM_ID = a.ITEM_ID
 LEFT JOIN (
   /* When the card was last comped. Same source card 39238 uses — the
@@ -220,6 +230,7 @@ SELECT
     c.PARALLEL_NUMBER                                               AS PARALLEL_NUMBER,
     c.PARALLEL_TOTAL                                                AS PARALLEL_TOTAL,
     c.SLAB_KIND                                                     AS SLAB_TYPE,
+    cert.CERT_NUMBER                                                AS CERT_NUMBER,
     c."RARITY"                                                      AS "RARITY",
     c."LANGUAGE"                                                    AS "LANGUAGE",
     c."EDITION"                                                     AS "EDITION",
@@ -241,6 +252,15 @@ LEFT JOIN APP_PROD.PUBLIC.COLLECTIONS col
 LEFT JOIN APP_PROD.ADMIN.CARDS c
   ON c.ID = i.ID
  AND NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)
+LEFT JOIN (
+  /* The cert lives in its own admin table, not on cards, and a regrade
+     writes another row — latest wins, through an aggregate so the join
+     cannot fan a lot into two. */
+  SELECT CARD_ID, MAX_BY(CERT_NUMBER, CREATED_AT) AS CERT_NUMBER
+    FROM APP_PROD.ADMIN.CARD_CERT_NUMBER
+   WHERE NOT COALESCE(_SNOWFLAKE_DELETED, FALSE)
+   GROUP BY CARD_ID
+) cert ON cert.CARD_ID = i.ID
 LEFT JOIN cost_by_item ci ON ci.ITEM_ID = i.ID
 LEFT JOIN (
   /* When the card was last comped. Same source card 39238 uses — the
