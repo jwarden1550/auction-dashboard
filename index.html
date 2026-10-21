@@ -37,13 +37,13 @@ h1 .g{color:var(--green)}
 .meta{color:var(--muted);font-size:13px;white-space:nowrap;padding-top:6px;text-align:right}
 .meta b{color:var(--text);font-weight:500}
 
-.tabs{display:flex;margin-top:26px;border-bottom:1px solid var(--line);align-items:center;justify-content:space-between}
+.tabs{display:flex;margin-top:26px;border-bottom:1px solid var(--line);align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px}
 .tab{background:none;border:0;color:var(--muted);padding:12px 22px;font-size:15px;letter-spacing:2px;border-bottom:2px solid transparent;margin-bottom:-1px}
 .tab:hover{color:var(--text)}
 .tab.on{color:var(--green);border-bottom-color:var(--green)}
 .tab .count{color:var(--text);margin-left:8px}
 .tab.on .count{color:var(--green)}
-.tabtools{display:flex;gap:8px;padding-bottom:8px;align-items:center}
+.tabtools{display:flex;gap:8px;padding-bottom:8px;align-items:center;flex-wrap:wrap}
 .pulled{color:var(--muted);opacity:.62;font-size:11px;letter-spacing:.6px;white-space:nowrap;margin-right:4px}
 
 .card{border:1px solid var(--line);border-radius:10px;background:var(--panel)}
@@ -242,6 +242,35 @@ tr:hover .polink{border-bottom-color:var(--green)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .toast.err{background:var(--red);color:#fff}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---------- on a phone ----------
+   The header was built for a desktop and never told otherwise: at 375px the
+   "data pulled" stamp and the two buttons ran 208px past the edge, which
+   scrolls the whole page sideways — every tap moves the content and half of
+   it sits off-screen. Nothing here changes the desktop. */
+@media(max-width:640px){
+  html,body{overflow-x:hidden}
+  .top{gap:12px}
+  .mark{width:64px;flex:0 0 64px}
+  h1{font-size:26px}
+  .sub{font-size:12px}
+  /* the tabs scroll as one row rather than stacking one per line, which ate
+     a third of the screen before any data appeared */
+  .tabs{flex-wrap:nowrap;align-items:flex-end;overflow-x:auto;overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs>div:first-child{display:flex;flex:0 0 auto}
+  .tab{padding:10px 13px;font-size:13px;letter-spacing:1.2px;white-space:nowrap}
+  .tabtools{flex:0 0 auto;padding-left:8px}
+  /* the stamp is the longest thing in that row and the least urgent */
+  .pulled{display:none}
+  .btn{padding:8px 12px;font-size:11.5px;letter-spacing:1px}
+  .kpis{grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:8px}
+  .kpi .v{font-size:22px}
+  .card-h{gap:8px;padding:12px 13px}
+  .drange{flex-wrap:wrap}
+  .fpanel{top:4vh;max-height:90vh;padding:13px 14px}
+}
 
 /* ---------- auction dashboard additions ---------- */
 .sec{display:inline-block;padding:2px 7px;border:1px solid var(--line);font-size:10.5px;letter-spacing:1px}
