@@ -2948,6 +2948,15 @@ $("#reload").onclick=async()=>{
 $("#csv").onclick=exportXlsx;
 $("#grpBy").onchange=()=>{ BRK.value=null; renderBreak(); };
 $("#brkBack").onclick=()=>{ BRK.value=null; renderBreak(); };
+/* Clicking anywhere in a date field drops open the browser's own month grid,
+   not just the small icon at the right. Filter rows are built after load, so
+   this is delegated off the document rather than bound per field. */
+document.addEventListener("click",e=>{
+  const el=e.target.closest&&e.target.closest('input[type="date"]');
+  if(!el||el.disabled||el.readOnly) return;
+  try{ el.showPicker(); }catch(_){ /* older browser, or the icon already opened it */ }
+});
+
 /* the design system styles .mark as clickable — send it to the first tab */
 const logo=$("#homeLogo");
 if(logo) logo.onclick=()=>$$('.tab[data-page="lots"]')[0].click();
