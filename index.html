@@ -413,8 +413,8 @@ tr:hover .polink{border-bottom-color:var(--green)}
 .pair{display:flex;gap:6px}
 
 .tscroll{overflow:auto;max-height:70vh;border:1px solid var(--line);background:var(--panel)}
-#lotTbl,#brkTbl,#pipeTbl,#secTbl{width:100%;border-collapse:collapse;font-size:12.5px}
-#lotTbl th,#brkTbl th,#pipeTbl th,#secTbl th{position:sticky;top:0;z-index:2;background:var(--panel-2);border-bottom:1px solid var(--line);
+#lotTbl,#brkTbl,#pipeTbl,#secTbl,#rzGrader,#rzBand{width:100%;border-collapse:collapse;font-size:12.5px}
+#lotTbl th,#brkTbl th,#pipeTbl th,#secTbl th,#rzGrader th,#rzBand th{position:sticky;top:0;z-index:2;background:var(--panel-2);border-bottom:1px solid var(--line);
   padding:9px 11px;text-align:center;font-size:10.5px;letter-spacing:1.3px;color:var(--muted);white-space:nowrap;cursor:pointer;user-select:none}
 /* The sort arrow is appended to the label, so centring the text alone would
    shift the label left every time a column is sorted. The cell centres its
@@ -422,9 +422,9 @@ tr:hover .polink{border-bottom-color:var(--green)}
 #lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar,#secTbl th .ar{position:absolute;margin-left:4px}
 #lotTbl th:hover,#brkTbl th:hover,#pipeTbl th:hover,#secTbl th:hover{color:var(--green)}
 #lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar,#secTbl th .ar{color:var(--green)}
-#lotTbl td,#brkTbl td,#pipeTbl td,#secTbl td{padding:8px 11px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
-#lotTbl tbody tr:hover,#brkTbl tbody tr:hover,#pipeTbl tbody tr:hover,#secTbl tbody tr:hover{background:var(--panel-2)}
-#lotTbl td.num,#brkTbl td.num,#pipeTbl td.num,#secTbl td.num{text-align:right;font-variant-numeric:tabular-nums}
+#lotTbl td,#brkTbl td,#pipeTbl td,#secTbl td,#rzGrader td,#rzBand td{padding:8px 11px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
+#lotTbl tbody tr:hover,#brkTbl tbody tr:hover,#pipeTbl tbody tr:hover,#secTbl tbody tr:hover,#rzGrader tbody tr:hover,#rzBand tbody tr:hover{background:var(--panel-2)}
+#lotTbl td.num,#brkTbl td.num,#pipeTbl td.num,#secTbl td.num,#rzGrader td.num,#rzBand td.num{text-align:right;font-variant-numeric:tabular-nums}
 #lotTbl td.wrap,#brkTbl td.wrap,#pipeTbl td.wrap,#secTbl td.wrap{white-space:normal;min-width:190px;max-width:330px}
 .thumb{width:34px;height:46px;object-fit:cover;background:var(--panel-2);border:1px solid var(--line);display:block;cursor:zoom-in}
 .pos{color:var(--green)} .neg{color:var(--red)}
@@ -476,6 +476,7 @@ tr:hover .polink{border-bottom-color:var(--green)}
     <button class="tab" data-page="pipe">PIPELINE <span class="count" id="pipeTabCount"></span></button>
     <button class="tab" data-page="secs">SECTIONS <span class="count" id="secsTabCount"></span></button>
     <button class="tab" data-page="break">BREAKDOWN</button>
+    <button class="tab" data-page="rlz">SOLD ÷ EV</button>
   </div>
   <div class="tabtools">
     <span class="pulled" id="mGen" title="These views are cached briefly, so this is when the data itself was read"></span>
@@ -591,6 +592,34 @@ tr:hover .polink{border-bottom-color:var(--green)}
     </div>
   </div>
   <p class="note" id="brkNote">Reads the whole book once, then groups it here. The filters on the COMPLETED AUCTIONS tab apply.</p>
+</div>
+
+<!-- ============ SOLD ÷ EV ============ -->
+<div id="page-rlz" class="hidden">
+  <div class="kpis" id="rzKpis"></div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-h"><span id="rzHead">SOLD ÷ EV</span>
+      <span class="hbtns">
+        <span class="drange">SOLD
+          <input type="date" id="rzFrom" title="sold on or after this day">
+          <span class="dto">to</span>
+          <input type="date" id="rzTo" title="sold on or before this day">
+          <button class="dclear" id="rzClear" title="clear the dates">&times;</button>
+        </span>
+      </span></div>
+    <div class="card-b" style="padding:0">
+      <div class="tscroll"><table id="rzGrader"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="card-h"><span>BY PRICE RANGE</span></div>
+    <div class="card-b" style="padding:0">
+      <div class="tscroll"><table id="rzBand"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+    </div>
+  </div>
+  <p class="note" id="rzNote"></p>
 </div>
 
 <div id="msg"></div>
@@ -2289,6 +2318,140 @@ function renderSectionLots(){
 }
 $("#secBack").onclick=()=>{ SEC.into=null; renderSectionList(); };
 
+/* ---------- SOLD ÷ EV ----------
+   The sheet's "Total Percentage": what the lots fetched against what they
+   were estimated at, as one figure and then cut two ways. Confirmed against
+   the sheet's own numbers before building — summing sold and summing EV
+   across its nineteen BGS rows gives 85.28%, which is what it reports.
+
+   Note it is a ratio of sums, not an average of ratios: one $7,000 card
+   counts for more than one $10 card, which is the point. An average of the
+   per-lot percentages would answer a different question.
+
+   Any date range, not the sheet's fixed 9/1–10/20. The grading companies
+   are labelled the way the sheet labels them. */
+const RLZ={from:"", to:"", rows:null};
+const RLZ_KEY="auctiondash.rlz";
+const GRADER_LABEL={arena_club:"AC", psa:"PSA", beckett:"BGS", sgc:"SGC", csg:"CSG", cgc:"CGC"};
+/* the sheet's bands, on estimated value */
+const RLZ_BANDS=[
+  {k:"$0 – $99",    lo:0,   hi:100},
+  {k:"$100 – $499", lo:100, hi:500},
+  {k:"$500+",       lo:500, hi:Infinity}
+];
+
+function rlzRange(){
+  try{ return JSON.parse(localStorage.getItem(RLZ_KEY))||{}; }catch(_){ return {}; }
+}
+function setRlzRange(from,to){
+  try{
+    if(from||to) localStorage.setItem(RLZ_KEY,JSON.stringify({from:from||"",to:to||""}));
+    else localStorage.removeItem(RLZ_KEY);
+  }catch(_){}
+}
+
+async function loadRlz(){
+  const job=startLoad("lots:book","Reading the whole book");
+  try{ await ensureBook(); endLoad(job); }
+  catch(e){ endLoad(job,false); $("#msg").innerHTML='<div class="err">Could not read the book — '+esc(e.message)+'</div>'; return; }
+  renderRlz();
+}
+
+/* sold and EV summed over the lots in range; a lot with no estimate is
+   counted nowhere, because dividing by an estimate it does not have would
+   quietly inflate the figure */
+function rlzTotals(rows){
+  let ev=0, sold=0, lots=0, noEv=0;
+  rows.forEach(r=>{
+    const e=numv(r.ESTIMATED_VALUE), s=numv(r.SOLD_PRICE);
+    if(!e){ noEv++; return; }
+    ev+=e; sold+=s; lots++;
+  });
+  return {lots, ev, sold, noEv, pct: ev? (sold/ev)*100 : null};
+}
+
+function renderRlz(){
+  const d=rlzRange();
+  const f=$("#rzFrom"), t=$("#rzTo");
+  if(f && document.activeElement!==f) f.value=d.from||"";
+  if(t && document.activeElement!==t) t.value=d.to||"";
+  const book=S.book;
+  if(!book) return;
+
+  const inRange=r=>{
+    const day=String(r.SOLD_AT||"").slice(0,10);
+    if(!day) return false;
+    if(d.from && day<d.from) return false;
+    if(d.to   && day>d.to)   return false;
+    return true;
+  };
+  const rows=book.rows.filter(inRange);
+  const all=rlzTotals(rows);
+
+  const tile=(k,v,sub,cls)=>`<div class="kpi ${cls||""}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub||""}</div></div>`;
+  $("#rzKpis").innerHTML=[
+    tile("SOLD ÷ EV", all.pct===null?"—":pct2(all.pct), "the whole range", all.pct>=100?"good":"bad"),
+    tile("LOTS", fmt(all.lots), all.noEv?`${fmt(all.noEv)} with no estimate, left out`:"all with an estimate"),
+    tile("EST VALUE", usd(all.ev), "what they were estimated at","gold"),
+    tile("SOLD", usd(all.sold), "what they actually fetched")
+  ].join("");
+
+  const span = d.from||d.to
+    ? `${d.from?sheetDay(d.from):"the start"} to ${d.to?sheetDay(d.to):"today"}`
+    : "every completed auction";
+  $("#rzHead").textContent="SOLD ÷ EV · "+span;
+
+  const table=(el,label,groups)=>{
+    const live=groups.filter(g=>g.t.lots);
+    $(el+" thead").innerHTML=`<tr><th>${esc(label)}</th><th>LOTS</th><th>EST VALUE</th><th>SOLD</th><th>DIFFERENCE</th><th>SOLD ÷ EV</th></tr>`;
+    $(el+" tbody").innerHTML = live.length ? live.map(g=>{
+      const diff=g.t.sold-g.t.ev;
+      return `<tr><td class="wrap">${esc(g.k)}</td>
+        <td class="num">${fmt(g.t.lots)}</td>
+        <td class="num">${usdc(g.t.ev)}</td>
+        <td class="num">${usdc(g.t.sold)}</td>
+        <td class="num ${diff>=0?"pos":"neg"}">${usdc(diff)}</td>
+        <td class="num ${g.t.pct>=100?"pos":"neg"}">${pct2(g.t.pct)}</td></tr>`;
+    }).join("") : `<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Nothing sold in this range.</td></tr>`;
+    const T=rlzTotals(live.flatMap(g=>g.rows));
+    $(el+" tfoot").innerHTML = live.length
+      ? `<tr><td>ALL</td><td class="num">${fmt(T.lots)}</td><td class="num">${usdc(T.ev)}</td>
+         <td class="num">${usdc(T.sold)}</td>
+         <td class="num ${T.sold-T.ev>=0?"pos":"neg"}">${usdc(T.sold-T.ev)}</td>
+         <td class="num ${T.pct>=100?"pos":"neg"}">${pct2(T.pct)}</td></tr>` : "";
+  };
+
+  /* by grading company */
+  const byG={};
+  rows.forEach(r=>{
+    const raw=String(r.GRADING_COMPANY||"").toLowerCase();
+    const k=GRADER_LABEL[raw]||(raw?raw.toUpperCase():"(ungraded)");
+    (byG[k]=byG[k]||[]).push(r);
+  });
+  table("#rzGrader","GRADING COMPANY",
+    Object.keys(byG).sort().map(k=>({k, rows:byG[k], t:rlzTotals(byG[k])})));
+
+  /* by price range, banded on the estimate */
+  table("#rzBand","PRICE RANGE",
+    RLZ_BANDS.map(b=>{
+      const sel=rows.filter(r=>{ const e=numv(r.ESTIMATED_VALUE); return e>=b.lo && e<b.hi; });
+      return {k:b.k, rows:sel, t:rlzTotals(sel)};
+    }));
+
+  $("#rzNote").textContent =
+    "Sold ÷ EV is the money, not the lots: every dollar of estimate counts the same, so one $7,000 card moves the figure more than one $10 card. "+
+    (all.noEv ? `${fmt(all.noEv)} lots in this range carry no estimate and are left out of every figure above.` : "");
+}
+
+/* 10/20/26 from a plain date string, without Date.parse treating it as UTC */
+const sheetDay=v=>{ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v||""); return m?`${+m[2]}/${+m[3]}/${m[1].slice(2)}`:v; };
+
+["#rzFrom","#rzTo"].forEach(id=>{
+  const el=$(id); if(!el) return;
+  el.onchange=()=>{ setRlzRange($("#rzFrom").value,$("#rzTo").value); renderRlz(); };
+});
+$("#rzClear")&&($("#rzClear").onclick=()=>{ setRlzRange("",""); renderRlz(); });
+
 $("#lotCols").onclick=(e)=>{
   e.stopPropagation();
   const b=S.meta||{};
@@ -2457,9 +2620,11 @@ $$(".tab[data-page]").forEach(b=>b.onclick=()=>{
   $("#page-lots").classList.toggle("hidden",pg!=="lots");
   $("#page-break").classList.toggle("hidden",pg!=="break");
   $("#page-secs").classList.toggle("hidden",pg!=="secs");
+  $("#page-rlz").classList.toggle("hidden",pg!=="rlz");
   $("#page-pipe").classList.toggle("hidden",pg!=="pipe");
   if(pg==="break") renderBreak();
   if(pg==="secs") loadSections();
+  if(pg==="rlz") loadRlz();
   if(pg==="pipe"){ loadPipe().then(pCounts); }
 });
 
@@ -2490,6 +2655,7 @@ $("#reload").onclick=async()=>{
     S.book=null; P.books={}; SEC.rows=null;
     if(currentPage==="pipe"){ await loadPipe(); pCounts(); }
     else if(currentPage==="secs"){ await loadSections(); }
+    else if(currentPage==="rlz"){ await loadRlz(); }
     else { await load(); if(currentPage==="break") renderBreak(); }
   } finally {
     FORCE_FRESH=false; btn.disabled=false; btn.textContent=label;
