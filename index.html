@@ -324,6 +324,7 @@ tr:hover .polink{border-bottom-color:var(--green)}
    the builder — it is the filter reached for most often */
 .kindmem{color:var(--muted);opacity:.55;font-size:10.5px;letter-spacing:.4px;margin-top:3px;
   white-space:normal;max-width:330px;line-height:1.45}
+.evfix{border-bottom:1px dotted var(--gold-dim)}
 .lotfresh{margin-left:12px;font-size:10.5px;letter-spacing:1.2px;color:var(--muted);opacity:.6}
 .lotfresh.stale{color:var(--gold);opacity:1}
 .drange{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);
@@ -1346,7 +1347,8 @@ async function ensureBook(){
   if(S.book) return S.book;
   /* the book exists to answer rules, and a rule can ask about any of the
      attribute fields, so this one does wait for them */
-  const [book]=await Promise.all([bookPages(API),premierBlocks()]);
+  const [book]=await Promise.all([bookPages(API),premierBlocks(),evFixes()]);
+  applyEvFixes(book.rows);
   S.book=book;
   buildFields("lots",book.columns.concat(EXTRA_CARD_FIELDS),book.rows);
   return book;
@@ -1379,7 +1381,8 @@ async function loadPage(){
      columns say, so the table waits for them. Card attributes are 1.7 MB and
      have taken 19 seconds — the table used to sit behind that before drawing
      a single row. It draws first now and they land into it. */
-  await premierBlocks();
+  await Promise.all([premierBlocks(),evFixes()]);
+  applyEvFixes(b.rows);
   S.rows=b.rows; S.meta=b; S.view=null;
   buildFields("lots",(b.columns||[]).concat(EXTRA_CARD_FIELDS),b.rows);
   syncFilterUI("lots","#lotFilt","#lotChips",()=>{S.page=1;load();});
@@ -1547,6 +1550,38 @@ const cardIdOf=r=>{
   const m=String(r.CARD_URL||"").match(/cards\/([0-9a-f-]{36})/i);
   return m?m[1]:null;
 };
+/* The estimates re-done by hand in the auction sheet, keyed on cert number.
+   Where the sheet has one it wins: it is the newer judgement, and SOLD ÷ EV
+   is only worth reading against the estimate actually believed. What the
+   warehouse had is kept on the row so the cell can still show it. */
+let EVFIX=null, EVFIX_AS_OF="";
+async function evFixes(){
+  if(EVFIX) return EVFIX;
+  if(LOCAL){ EVFIX={}; return EVFIX; }
+  try{
+    const r=await fetch("/api/evfix");
+    const b=await readJson(r);
+    EVFIX = b.ok ? (b.ev||{}) : {};
+    EVFIX_AS_OF = b.asOf || "";
+  }catch(_){ EVFIX={}; }
+  return EVFIX;
+}
+function applyEvFixes(rows){
+  if(!EVFIX) return rows;
+  rows.forEach(r=>{
+    const cert=String(r.CERT_NUMBER||"").trim();
+    if(!cert) return;
+    const v=EVFIX[cert];
+    if(v===undefined||v===null) return;
+    const was=numv(r.ESTIMATED_VALUE);
+    if(Math.abs(was-v)<0.005) return;
+    r.EV_WAS=was;
+    r.ESTIMATED_VALUE=v;
+    r.SOLD_VS_EV=numv(r.SOLD_PRICE)-v;   /* the query derived this from the old estimate */
+  });
+  return rows;
+}
+
 /* COMPLETED AUCTIONS reads Metabase card 39238, which does not expose the
    premier block. It does return AUCTION_URL, which ends in the auction id, so
    the block is joined here from /api/premier — a few hundred rows, fetched
@@ -1591,9 +1626,12 @@ function cell(row,c){
     case "link": return v?`<td><a class="alink" href="${esc(v)}" target="_blank" rel="noopener">OPEN ↗</a></td>`:`<td></td>`;
     case "wrap": return `<td class="wrap">${esc(v||"—")}</td>`;
     case "date": return `<td class="num">${day(v)}</td>`;
-    case "usd":  return v===null||v===undefined||v===""
-      ? `<td class="num">—</td>`
-      : `<td class="num"${exactTip(v)}>${usdc(v)}</td>`;
+    case "usd":
+      if(v===null||v===undefined||v==="") return `<td class="num">—</td>`;
+      /* an estimate that came from the sheet says so, and says what it replaced */
+      if(c.k==="ESTIMATED_VALUE" && row.EV_WAS!==undefined)
+        return `<td class="num evfix" title="from the auction sheet — the warehouse has ${esc(usdc(row.EV_WAS))}">${usdc(v)}</td>`;
+      return `<td class="num"${exactTip(v)}>${usdc(v)}</td>`;
     case "int":  return `<td class="num">${v===null||v===undefined||v===""?"—":fmt(v)}</td>`;
     case "signed":{
       if(v===null||v===undefined||v==="") return `<td class="num">—</td>`;
@@ -2487,7 +2525,9 @@ function renderRlz(){
     .sort((a,b)=>b.t.ev-a.t.ev);
   table("#rzSport","SPORT",sports,k=>k==="(none)"?'<td class="wrap">—</td>':sportCell(k));
 
+  const fixed=rows.filter(r=>r.EV_WAS!==undefined).length;
   $("#rzNote").textContent =
+    (fixed?`${fmt(fixed)} of these lots use the estimate re-done in the auction sheet rather than the warehouse's${EVFIX_AS_OF?", as it stood on "+EVFIX_AS_OF:""} — on COMPLETED AUCTIONS those cells carry a dotted underline, and hovering one shows what the warehouse had. `:"")+
     "Sold ÷ EV is the money, not the lots: every dollar of estimate counts the same, so one $7,000 card moves the figure more than one $10 card. "+
     (all.noEv ? `${fmt(all.noEv)} lots in this range carry no estimate and are left out of every figure above.` : "");
 }
