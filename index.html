@@ -1850,6 +1850,77 @@ async function pAllRows(){
   return filterRows(book.rows,pScope());
 }
 
+/* ---------- the SOLD ÷ EV summary, as the workbook's first sheet ----------
+   The same four cuts the tab shows — grading company, price range, category,
+   sport — so the file opens on the answer with the lots sitting behind it.
+
+   It describes the rows in the Lots sheet and nothing else. Filter or
+   date-range the COMPLETED AUCTIONS tab and both sheets move together,
+   which is the only way a summary and its detail can be trusted to agree.
+
+   No cell styling: the build of SheetJS this page loads is the community
+   one, which does not write fonts or fills. So the layout does the work —
+   blank rows between sections, headings in capitals, and column widths set
+   so nothing is cut off. */
+function rlzSections(rows){
+  const by=fn=>{ const m={}; rows.forEach(r=>{ const k=fn(r); (m[k]=m[k]||[]).push(r); }); return m; };
+  const live=gs=>gs.filter(g=>g.t.lots);
+  const g=by(graderOf), k=by(r=>kindOf(r.SPORT)), s=by(r=>String(r.SPORT||"(none)"));
+  return [
+    {title:"BY GRADING COMPANY", groups:live(Object.keys(g).sort().map(x=>({k:x,t:rlzTotals(g[x])})))},
+    {title:"BY PRICE RANGE",     groups:live(RLZ_BANDS.map(b=>({k:b.k,
+       t:rlzTotals(rows.filter(r=>{const e=numv(r.ESTIMATED_VALUE); return e>=b.lo&&e<b.hi;}))})))},
+    {title:"BY CATEGORY",        groups:live(["SPORTS","TCG","OTHER"].filter(x=>k[x]).map(x=>({k:x,t:rlzTotals(k[x])})))},
+    {title:"BY SPORT",           groups:live(Object.keys(s).map(x=>({k:x,t:rlzTotals(s[x])})).sort((a,b)=>b.t.ev-a.t.ev))}
+  ];
+}
+
+function rlzSummarySheet(rows, basis){
+  const all=rlzTotals(rows);
+  const HEAD=["","LOTS","EST VALUE","SOLD","DIFFERENCE","SOLD ÷ EV"];
+  const aoa=[], numbered=[];
+  const put=r=>{ aoa.push(r||[]); return aoa.length-1; };
+  /* numbers as numbers with a format, never "$1,234" or "74.2%" as text —
+     a percentage written as text cannot be sorted, charted or averaged,
+     which is most of the reason for putting it in a spreadsheet */
+  const row=(label,t)=>{
+    numbered.push(put([label, t.lots, t.ev, t.sold, t.sold-t.ev, t.ev? t.sold/t.ev : null]));
+  };
+
+  put(["ARENA CLUB — COMPLETED AUCTIONS"]);
+  put(["SOLD ÷ EV — what these lots fetched against what they were estimated at"]);
+  put([basis]);
+  put([`Exported ${new Date().toLocaleString("en-US")}`]);
+  put();
+  put(["A ratio of sums, not an average of ratios: every dollar of estimate counts the same,"]);
+  put(["so one $7,000 card moves a figure more than one $10 card does."]);
+  if(all.noEv) put([`${fmt(all.noEv)} lots carry no estimate and are left out of every figure below.`]);
+  put();
+
+  put(["OVERALL"]);
+  put(HEAD);
+  row("Everything in this file", all);
+  put();
+
+  rlzSections(rows).forEach(sec=>{
+    put([sec.title]);
+    put(HEAD);
+    sec.groups.forEach(g=>row(g.k,g.t));
+    row("ALL", all);          /* every cut here partitions the same lots */
+    put();
+  });
+
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  const at=(r,c)=>ws[XLSX.utils.encode_cell({r,c})];
+  numbered.forEach(r=>{
+    const n=at(r,1); if(n) n.z="#,##0";
+    [2,3,4].forEach(c=>{ const m=at(r,c); if(m) m.z='$#,##0'; });
+    const p=at(r,5); if(p) p.z="0.0%";
+  });
+  ws["!cols"]=[{wch:36},{wch:9},{wch:13},{wch:13},{wch:13},{wch:11}];
+  return ws;
+}
+
 /* Columns asked to be dropped from the completed-auctions export, by name
    rather than by letter so adding a column later cannot shift the cut onto
    the wrong one. Most of them are the pieces DESCRIPTION already spells out
@@ -1928,11 +1999,21 @@ async function exportXlsx(){
     const after=moved.filter(k=>k==="DESCRIPTION"||k in typed[0]);
     const header=keys.slice(0,3).concat(after, keys.slice(3));
 
-    const sheetName = onPipe ? ((P.cat==="card"?"Cards ":"Watches ")+(P.view==="active"?"in auction":"waiting")) : "Completed auctions";
+    const sheetName = onPipe ? ((P.cat==="card"?"Cards ":"Watches ")+(P.view==="active"?"in auction":"waiting")) : "Lots";
     const ws = XLSX.utils.json_to_sheet(typed,{header});
     ws["!cols"] = header.map(k=>({wch:k==="DESCRIPTION"?64:Math.min(38,Math.max(10,k.length+2))}));
     ws["!autofilter"] = {ref: ws["!ref"]};
     const wb = XLSX.utils.book_new();
+    /* the summary goes in first so the file opens on it */
+    if(!onPipe){
+      const d=dRange();
+      const basis=[
+        `${fmt(rows.length)} completed lots`,
+        d.from||d.to ? `sold ${d.from?sheetDay(d.from):"from the start"} to ${d.to?sheetDay(d.to):"today"}` : "every completed auction",
+        countRules(rulesFor("lots")) ? "with the COMPLETED AUCTIONS filter applied" : "no filter applied"
+      ].join(" · ");
+      XLSX.utils.book_append_sheet(wb, rlzSummarySheet(rows, basis), "Sold vs EV");
+    }
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
     const stamp = new Date().toISOString().slice(0,10);
     XLSX.writeFile(wb, `arena-${onPipe?P.cat+"-"+P.view:"completed"}-${stamp}.xlsx`);
