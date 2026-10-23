@@ -1352,7 +1352,7 @@ async function ensureBook(){
   /* the book exists to answer rules, and a rule can ask about any of the
      attribute fields, so this one does wait for them */
   const [book]=await Promise.all([bookPages(API),premierBlocks(),evFixes()]);
-  applyEvFixes(book.rows);
+  applyEvFixes(book.rows); nameGraders(book.rows);
   S.book=book;
   buildFields("lots",book.columns.concat(EXTRA_CARD_FIELDS),book.rows);
   return book;
@@ -1386,7 +1386,7 @@ async function loadPage(){
      have taken 19 seconds — the table used to sit behind that before drawing
      a single row. It draws first now and they land into it. */
   await Promise.all([premierBlocks(),evFixes()]);
-  applyEvFixes(b.rows);
+  applyEvFixes(b.rows); nameGraders(b.rows);
   S.rows=b.rows; S.meta=b; S.view=null;
   buildFields("lots",(b.columns||[]).concat(EXTRA_CARD_FIELDS),b.rows);
   syncFilterUI("lots","#lotFilt","#lotChips",()=>{S.page=1;load();});
@@ -1570,6 +1570,26 @@ async function evFixes(){
   }catch(_){ EVFIX={cert:{},desc:{}}; }
   return EVFIX;
 }
+/* One name per grading company, applied to the rows as they arrive so the
+   table, the filter, the breakdown, the export and SOLD ÷ EV cannot
+   disagree with each other.
+   csg is CGC under its old name — Certified Sports Guaranty became CGC
+   Cards, and the warehouse still writes the old code; beckett is BGS and
+   arena_club is AC on every screen anyone uses. The warehouse values are
+   left alone, so a Metabase query still reads csg / beckett / arena_club:
+   that is the one place these two now differ, deliberately. */
+const GRADER_LABEL={arena_club:"AC", psa:"PSA", beckett:"BGS", sgc:"SGC", csg:"CGC", cgc:"CGC"};
+function nameGraders(rows){
+  rows.forEach(r=>{
+    const raw=String(r.GRADING_COMPANY||"").trim().toLowerCase();
+    if(!raw) return;
+    const lab=GRADER_LABEL[raw];
+    if(lab) r.GRADING_COMPANY=lab;
+    else if(raw===String(r.GRADING_COMPANY)) r.GRADING_COMPANY=raw.toUpperCase();
+  });
+  return rows;
+}
+
 /* The sheet's own key, rebuilt here so both ends agree character for
    character: set, player and grade, collapsed and lowercased, with grade 0
    reading "au" the way the sheet writes it. */
@@ -2037,6 +2057,7 @@ async function pBook(cat,view){
   if(!P.loading[key]){
     P.loading[key]=bookPages(PAPI,{view,category:cat})
       .then(book=>{
+        nameGraders(book.rows);
         P.books[key]=book;
         buildFields("pipe:"+(cat==="card"&&P.cat==="premier"?"premier":cat)+":"+view,book.columns,book.rows);
         return book;
@@ -2398,10 +2419,7 @@ $("#secBack").onclick=()=>{ SEC.into=null; renderSectionList(); };
    are labelled the way the sheet labels them. */
 const RLZ={from:"", to:"", rows:null};
 const RLZ_KEY="auctiondash.rlz";
-/* csg is CGC under its old name — Certified Sports Guaranty became CGC
-   Cards and the warehouse still writes the old code. Both land on CGC, so
-   they count as one grader rather than two. */
-const GRADER_LABEL={arena_club:"AC", psa:"PSA", beckett:"BGS", sgc:"SGC", csg:"CGC", cgc:"CGC"};
+const graderOf=r=>String(r.GRADING_COMPANY||"")||"(ungraded)";
 /* graders switched off on this tab; every figure here is computed without
    them, which is the point — the overall percentage is what moves. */
 const RLZEX_KEY="auctiondash.rlzex";
@@ -2414,10 +2432,7 @@ function setRlzExcluded(set){
     else localStorage.removeItem(RLZEX_KEY);
   }catch(_){}
 }
-const graderOf=r=>{
-  const raw=String(r.GRADING_COMPANY||"").toLowerCase();
-  return GRADER_LABEL[raw]||(raw?raw.toUpperCase():"(ungraded)");
-};
+
 /* Sports is the closed list; everything that is not one of them and not
    housekeeping is a trading card game. Written that way round on purpose —
    new TCGs keep arriving (one piece, star wars, star trek, marvel, garbage
