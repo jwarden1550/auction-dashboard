@@ -1861,6 +1861,13 @@ const EXPORT_DROP=["PLAYER_NAME","SET_NAME","SPORT","GRADE","INSERT","PARALLEL_N
   "PARALLEL_TOTAL","TOTAL_BIDS","MARGIN","COST_KIND","COST_ROW_COUNT","TEAM","YEAR",
   "CARD_NUMBER","PARALLEL_NUMBER","SLAB_TYPE","RARITY","LANGUAGE","EDITION",
   "IS_ROOKIE","IS_RELIC","IS_FULL_ART","PREMIER_BLOCK","AUCTION_STATUS",
+  /* the AC number twice over: the query selects c.NUMBER as both 8ac_number,
+     the name card 39238 used, and AC_NUMBER. Identical on all 2,000 rows
+     checked, empty on the same 10. AC_NUMBER is the one kept — the other
+     starts with a digit, which a spreadsheet formula cannot reference
+     without quoting. The app still reads 8ac_number for the VIEW link; this
+     drops it from the export only. */
+  "8ac_number",
   /* workings, not data: the estimate the sheet replaced. json_to_sheet adds
      any key it finds on a row, so a lot whose estimate came from the sheet
      would otherwise put a column on the end that the first row never had. */
