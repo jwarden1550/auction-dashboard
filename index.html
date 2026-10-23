@@ -1557,21 +1557,29 @@ const cardIdOf=r=>{
 let EVFIX=null, EVFIX_AS_OF="";
 async function evFixes(){
   if(EVFIX) return EVFIX;
-  if(LOCAL){ EVFIX={}; return EVFIX; }
+  if(LOCAL){ EVFIX={cert:{},desc:{}}; return EVFIX; }
   try{
     const r=await fetch("/api/evfix");
     const b=await readJson(r);
-    EVFIX = b.ok ? (b.ev||{}) : {};
+    EVFIX = b.ok ? {cert:b.cert||{}, desc:b.desc||{}} : {cert:{},desc:{}};
     EVFIX_AS_OF = b.asOf || "";
-  }catch(_){ EVFIX={}; }
+  }catch(_){ EVFIX={cert:{},desc:{}}; }
   return EVFIX;
 }
+/* The sheet's own key, rebuilt here so both ends agree character for
+   character: set, player and grade, collapsed and lowercased, with grade 0
+   reading "au" the way the sheet writes it. */
+const evDescKey=r=>{
+  const g=String(r.GRADE==null?"":r.GRADE).trim();
+  const grade=(g===""||g==="0"||g==="0.0")?"au":(g.indexOf(".")>=0?g.replace(/0+$/,"").replace(/\.$/,""):g);
+  return `${r.SET_NAME||""} ${r.PLAYER_NAME||""} ${grade}`.replace(/\s+/g," ").trim().toLowerCase();
+};
 function applyEvFixes(rows){
   if(!EVFIX) return rows;
   rows.forEach(r=>{
     const cert=String(r.CERT_NUMBER||"").trim();
-    if(!cert) return;
-    const v=EVFIX[cert];
+    /* a cert is exact; the description is only reached for when there is none */
+    let v = cert ? EVFIX.cert[cert] : EVFIX.desc[evDescKey(r)];
     if(v===undefined||v===null) return;
     const was=numv(r.ESTIMATED_VALUE);
     if(Math.abs(was-v)<0.005) return;
