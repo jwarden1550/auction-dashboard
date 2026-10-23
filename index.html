@@ -322,6 +322,8 @@ tr:hover .polink{border-bottom-color:var(--green)}
 .card-h .hbtns{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 /* the sold-date range, back as its own control rather than four clicks into
    the builder — it is the filter reached for most often */
+.kindmem{color:var(--muted);opacity:.55;font-size:10.5px;letter-spacing:.4px;margin-top:3px;
+  white-space:normal;max-width:330px;line-height:1.45}
 .lotfresh{margin-left:12px;font-size:10.5px;letter-spacing:1.2px;color:var(--muted);opacity:.6}
 .lotfresh.stale{color:var(--gold);opacity:1}
 .drange{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);
@@ -413,8 +415,8 @@ tr:hover .polink{border-bottom-color:var(--green)}
 .pair{display:flex;gap:6px}
 
 .tscroll{overflow:auto;max-height:70vh;border:1px solid var(--line);background:var(--panel)}
-#lotTbl,#brkTbl,#pipeTbl,#secTbl,#rzGrader,#rzBand,#rzSport{width:100%;border-collapse:collapse;font-size:12.5px}
-#lotTbl th,#brkTbl th,#pipeTbl th,#secTbl th,#rzGrader th,#rzBand th,#rzSport th{position:sticky;top:0;z-index:2;background:var(--panel-2);border-bottom:1px solid var(--line);
+#lotTbl,#brkTbl,#pipeTbl,#secTbl,#rzGrader,#rzBand,#rzSport,#rzKind{width:100%;border-collapse:collapse;font-size:12.5px}
+#lotTbl th,#brkTbl th,#pipeTbl th,#secTbl th,#rzGrader th,#rzBand th,#rzSport th,#rzKind th{position:sticky;top:0;z-index:2;background:var(--panel-2);border-bottom:1px solid var(--line);
   padding:9px 11px;text-align:center;font-size:10.5px;letter-spacing:1.3px;color:var(--muted);white-space:nowrap;cursor:pointer;user-select:none}
 /* The sort arrow is appended to the label, so centring the text alone would
    shift the label left every time a column is sorted. The cell centres its
@@ -422,9 +424,9 @@ tr:hover .polink{border-bottom-color:var(--green)}
 #lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar,#secTbl th .ar{position:absolute;margin-left:4px}
 #lotTbl th:hover,#brkTbl th:hover,#pipeTbl th:hover,#secTbl th:hover{color:var(--green)}
 #lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar,#secTbl th .ar{color:var(--green)}
-#lotTbl td,#brkTbl td,#pipeTbl td,#secTbl td,#rzGrader td,#rzBand td,#rzSport td{padding:8px 11px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
-#lotTbl tbody tr:hover,#brkTbl tbody tr:hover,#pipeTbl tbody tr:hover,#secTbl tbody tr:hover,#rzGrader tbody tr:hover,#rzBand tbody tr:hover,#rzSport tbody tr:hover{background:var(--panel-2)}
-#lotTbl td.num,#brkTbl td.num,#pipeTbl td.num,#secTbl td.num,#rzGrader td.num,#rzBand td.num,#rzSport td.num{text-align:right;font-variant-numeric:tabular-nums}
+#lotTbl td,#brkTbl td,#pipeTbl td,#secTbl td,#rzGrader td,#rzBand td,#rzSport td,#rzKind td{padding:8px 11px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
+#lotTbl tbody tr:hover,#brkTbl tbody tr:hover,#pipeTbl tbody tr:hover,#secTbl tbody tr:hover,#rzGrader tbody tr:hover,#rzBand tbody tr:hover,#rzSport tbody tr:hover,#rzKind tbody tr:hover{background:var(--panel-2)}
+#lotTbl td.num,#brkTbl td.num,#pipeTbl td.num,#secTbl td.num,#rzGrader td.num,#rzBand td.num,#rzSport td.num,#rzKind td.num{text-align:right;font-variant-numeric:tabular-nums}
 #lotTbl td.wrap,#brkTbl td.wrap,#pipeTbl td.wrap,#secTbl td.wrap{white-space:normal;min-width:190px;max-width:330px}
 .thumb{width:34px;height:46px;object-fit:cover;background:var(--panel-2);border:1px solid var(--line);display:block;cursor:zoom-in}
 .pos{color:var(--green)} .neg{color:var(--red)}
@@ -617,6 +619,13 @@ tr:hover .polink{border-bottom-color:var(--green)}
     <div class="card-h"><span>BY PRICE RANGE</span></div>
     <div class="card-b" style="padding:0">
       <div class="tscroll"><table id="rzBand"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="card-h"><span>BY CATEGORY</span></div>
+    <div class="card-b" style="padding:0">
+      <div class="tscroll"><table id="rzKind"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
     </div>
   </div>
 
@@ -2340,6 +2349,22 @@ $("#secBack").onclick=()=>{ SEC.into=null; renderSectionList(); };
 const RLZ={from:"", to:"", rows:null};
 const RLZ_KEY="auctiondash.rlz";
 const GRADER_LABEL={arena_club:"AC", psa:"PSA", beckett:"BGS", sgc:"SGC", csg:"CSG", cgc:"CGC"};
+/* Sports is the closed list; everything that is not one of them and not
+   housekeeping is a trading card game. Written that way round on purpose —
+   new TCGs keep arriving (one piece, star wars, star trek, marvel, garbage
+   pail kids, and whatever Disney ships next) while the list of sports does
+   not move, so an unfamiliar value lands in TCG by itself rather than
+   waiting for someone to notice it in OTHER. */
+const KIND_SPORTS=new Set(["football","basketball","baseball","soccer","hockey",
+  "golf","tennis","racing","boxing","combat","wrestling"]);
+const KIND_OTHER=new Set(["media","other",""]);
+const kindOf=v=>{
+  const k=String(v||"").trim().toLowerCase();
+  if(KIND_SPORTS.has(k)) return "SPORTS";
+  if(KIND_OTHER.has(k)) return "OTHER";
+  return "TCG";
+};
+
 /* the sheet's bands, on estimated value */
 const RLZ_BANDS=[
   {k:"$0 – $99",    lo:0,   hi:100},
@@ -2444,6 +2469,15 @@ function renderRlz(){
       const sel=rows.filter(r=>{ const e=numv(r.ESTIMATED_VALUE); return e>=b.lo && e<b.hi; });
       return {k:b.k, rows:sel, t:rlzTotals(sel)};
     }));
+
+  /* sports against trading card games, with the members of each named so
+     nobody has to guess what fell where */
+  const byK={};
+  rows.forEach(r=>{ const k=kindOf(r.SPORT); (byK[k]=byK[k]||[]).push(r); });
+  const members=k=>[...new Set(byK[k].map(r=>String(r.SPORT||"(none)")))].sort().join(", ");
+  table("#rzKind","CATEGORY",
+    ["SPORTS","TCG","OTHER"].filter(k=>byK[k]).map(k=>({k, rows:byK[k], t:rlzTotals(byK[k])})),
+    k=>`<td class="wrap"><b>${esc(k)}</b><div class="kindmem">${esc(members(k))}</div></td>`);
 
   /* by sport, biggest book first — eighteen of them, and alphabetical would
      bury the ones that matter */
