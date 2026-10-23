@@ -413,8 +413,8 @@ tr:hover .polink{border-bottom-color:var(--green)}
 .pair{display:flex;gap:6px}
 
 .tscroll{overflow:auto;max-height:70vh;border:1px solid var(--line);background:var(--panel)}
-#lotTbl,#brkTbl,#pipeTbl,#secTbl,#rzGrader,#rzBand{width:100%;border-collapse:collapse;font-size:12.5px}
-#lotTbl th,#brkTbl th,#pipeTbl th,#secTbl th,#rzGrader th,#rzBand th{position:sticky;top:0;z-index:2;background:var(--panel-2);border-bottom:1px solid var(--line);
+#lotTbl,#brkTbl,#pipeTbl,#secTbl,#rzGrader,#rzBand,#rzSport{width:100%;border-collapse:collapse;font-size:12.5px}
+#lotTbl th,#brkTbl th,#pipeTbl th,#secTbl th,#rzGrader th,#rzBand th,#rzSport th{position:sticky;top:0;z-index:2;background:var(--panel-2);border-bottom:1px solid var(--line);
   padding:9px 11px;text-align:center;font-size:10.5px;letter-spacing:1.3px;color:var(--muted);white-space:nowrap;cursor:pointer;user-select:none}
 /* The sort arrow is appended to the label, so centring the text alone would
    shift the label left every time a column is sorted. The cell centres its
@@ -422,9 +422,9 @@ tr:hover .polink{border-bottom-color:var(--green)}
 #lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar,#secTbl th .ar{position:absolute;margin-left:4px}
 #lotTbl th:hover,#brkTbl th:hover,#pipeTbl th:hover,#secTbl th:hover{color:var(--green)}
 #lotTbl th .ar,#brkTbl th .ar,#pipeTbl th .ar,#secTbl th .ar{color:var(--green)}
-#lotTbl td,#brkTbl td,#pipeTbl td,#secTbl td,#rzGrader td,#rzBand td{padding:8px 11px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
-#lotTbl tbody tr:hover,#brkTbl tbody tr:hover,#pipeTbl tbody tr:hover,#secTbl tbody tr:hover,#rzGrader tbody tr:hover,#rzBand tbody tr:hover{background:var(--panel-2)}
-#lotTbl td.num,#brkTbl td.num,#pipeTbl td.num,#secTbl td.num,#rzGrader td.num,#rzBand td.num{text-align:right;font-variant-numeric:tabular-nums}
+#lotTbl td,#brkTbl td,#pipeTbl td,#secTbl td,#rzGrader td,#rzBand td,#rzSport td{padding:8px 11px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
+#lotTbl tbody tr:hover,#brkTbl tbody tr:hover,#pipeTbl tbody tr:hover,#secTbl tbody tr:hover,#rzGrader tbody tr:hover,#rzBand tbody tr:hover,#rzSport tbody tr:hover{background:var(--panel-2)}
+#lotTbl td.num,#brkTbl td.num,#pipeTbl td.num,#secTbl td.num,#rzGrader td.num,#rzBand td.num,#rzSport td.num{text-align:right;font-variant-numeric:tabular-nums}
 #lotTbl td.wrap,#brkTbl td.wrap,#pipeTbl td.wrap,#secTbl td.wrap{white-space:normal;min-width:190px;max-width:330px}
 .thumb{width:34px;height:46px;object-fit:cover;background:var(--panel-2);border:1px solid var(--line);display:block;cursor:zoom-in}
 .pos{color:var(--green)} .neg{color:var(--red)}
@@ -617,6 +617,13 @@ tr:hover .polink{border-bottom-color:var(--green)}
     <div class="card-h"><span>BY PRICE RANGE</span></div>
     <div class="card-b" style="padding:0">
       <div class="tscroll"><table id="rzBand"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="card-h"><span>BY SPORT</span></div>
+    <div class="card-b" style="padding:0">
+      <div class="tscroll"><table id="rzSport"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
     </div>
   </div>
   <p class="note" id="rzNote"></p>
@@ -2401,12 +2408,12 @@ function renderRlz(){
     : "every completed auction";
   $("#rzHead").textContent="SOLD ÷ EV · "+span;
 
-  const table=(el,label,groups)=>{
+  const table=(el,label,groups,labelCell)=>{
     const live=groups.filter(g=>g.t.lots);
     $(el+" thead").innerHTML=`<tr><th>${esc(label)}</th><th>LOTS</th><th>EST VALUE</th><th>SOLD</th><th>DIFFERENCE</th><th>SOLD ÷ EV</th></tr>`;
     $(el+" tbody").innerHTML = live.length ? live.map(g=>{
       const diff=g.t.sold-g.t.ev;
-      return `<tr><td class="wrap">${esc(g.k)}</td>
+      return `<tr>${labelCell?labelCell(g.k):`<td class="wrap">${esc(g.k)}</td>`}
         <td class="num">${fmt(g.t.lots)}</td>
         <td class="num">${usdc(g.t.ev)}</td>
         <td class="num">${usdc(g.t.sold)}</td>
@@ -2437,6 +2444,14 @@ function renderRlz(){
       const sel=rows.filter(r=>{ const e=numv(r.ESTIMATED_VALUE); return e>=b.lo && e<b.hi; });
       return {k:b.k, rows:sel, t:rlzTotals(sel)};
     }));
+
+  /* by sport, biggest book first — eighteen of them, and alphabetical would
+     bury the ones that matter */
+  const byS={};
+  rows.forEach(r=>{ const k=String(r.SPORT||"(none)"); (byS[k]=byS[k]||[]).push(r); });
+  const sports=Object.keys(byS).map(k=>({k, rows:byS[k], t:rlzTotals(byS[k])}))
+    .sort((a,b)=>b.t.ev-a.t.ev);
+  table("#rzSport","SPORT",sports,k=>k==="(none)"?'<td class="wrap">—</td>':sportCell(k));
 
   $("#rzNote").textContent =
     "Sold ÷ EV is the money, not the lots: every dollar of estimate counts the same, so one $7,000 card moves the figure more than one $10 card. "+
