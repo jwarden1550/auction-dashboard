@@ -1890,11 +1890,15 @@ async function exportXlsx(){
       return o;
     });
 
-    /* DESCRIPTION is asked for in column D, so the order is set explicitly
-       rather than left to whatever order the keys arrived in. Everything
-       else keeps the order it had, with the new column slotted in fourth. */
-    const keys=Object.keys(typed[0]).filter(k=>k!=="DESCRIPTION");
-    const header=keys.slice(0,3).concat("DESCRIPTION", keys.slice(3));
+    /* DESCRIPTION in column D and CERT NUMBER straight after it, so the
+       order is set explicitly rather than left to whatever order the keys
+       arrived in. Both are pulled out of their old positions first;
+       everything else keeps the order it had. Watches carry no cert, so
+       that column only appears where there is one. */
+    const moved=["DESCRIPTION","CERT_NUMBER"];
+    const keys=Object.keys(typed[0]).filter(k=>!moved.includes(k));
+    const after=moved.filter(k=>k==="DESCRIPTION"||k in typed[0]);
+    const header=keys.slice(0,3).concat(after, keys.slice(3));
 
     const sheetName = onPipe ? ((P.cat==="card"?"Cards ":"Watches ")+(P.view==="active"?"in auction":"waiting")) : "Completed auctions";
     const ws = XLSX.utils.json_to_sheet(typed,{header});
