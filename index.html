@@ -324,6 +324,10 @@ tr:hover .polink{border-bottom-color:var(--green)}
    the builder — it is the filter reached for most often */
 .kindmem{color:var(--muted);opacity:.55;font-size:10.5px;letter-spacing:.4px;margin-top:3px;
   white-space:normal;max-width:330px;line-height:1.45}
+.rzpick{width:34px;text-align:center}
+.rzpick input{width:14px;height:14px;accent-color:var(--green);cursor:pointer;margin:0}
+tr.rzoff td{opacity:.34}
+tr.rzoff td.rzpick{opacity:1}
 .evfix{border-bottom:1px dotted var(--gold-dim)}
 .lotfresh{margin-left:12px;font-size:10.5px;letter-spacing:1.2px;color:var(--muted);opacity:.6}
 .lotfresh.stale{color:var(--gold);opacity:1}
@@ -2394,7 +2398,26 @@ $("#secBack").onclick=()=>{ SEC.into=null; renderSectionList(); };
    are labelled the way the sheet labels them. */
 const RLZ={from:"", to:"", rows:null};
 const RLZ_KEY="auctiondash.rlz";
-const GRADER_LABEL={arena_club:"AC", psa:"PSA", beckett:"BGS", sgc:"SGC", csg:"CSG", cgc:"CGC"};
+/* csg is CGC under its old name — Certified Sports Guaranty became CGC
+   Cards and the warehouse still writes the old code. Both land on CGC, so
+   they count as one grader rather than two. */
+const GRADER_LABEL={arena_club:"AC", psa:"PSA", beckett:"BGS", sgc:"SGC", csg:"CGC", cgc:"CGC"};
+/* graders switched off on this tab; every figure here is computed without
+   them, which is the point — the overall percentage is what moves. */
+const RLZEX_KEY="auctiondash.rlzex";
+function rlzExcluded(){
+  try{ return new Set(JSON.parse(localStorage.getItem(RLZEX_KEY))||[]); }catch(_){ return new Set(); }
+}
+function setRlzExcluded(set){
+  try{
+    if(set.size) localStorage.setItem(RLZEX_KEY,JSON.stringify([...set]));
+    else localStorage.removeItem(RLZEX_KEY);
+  }catch(_){}
+}
+const graderOf=r=>{
+  const raw=String(r.GRADING_COMPANY||"").toLowerCase();
+  return GRADER_LABEL[raw]||(raw?raw.toUpperCase():"(ungraded)");
+};
 /* Sports is the closed list; everything that is not one of them and not
    housekeeping is a trading card game. Written that way round on purpose —
    new TCGs keep arriving (one piece, star wars, star trek, marvel, garbage
@@ -2463,7 +2486,11 @@ function renderRlz(){
     if(d.to   && day>d.to)   return false;
     return true;
   };
-  const rows=book.rows.filter(inRange);
+  const inDate=book.rows.filter(inRange);
+  const ex=rlzExcluded();
+  /* every figure on this tab except the grading-company table itself is
+     computed from the graders left switched on */
+  const rows=inDate.filter(r=>!ex.has(graderOf(r)));
   const all=rlzTotals(rows);
 
   const tile=(k,v,sub,cls)=>`<div class="kpi ${cls||""}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub||""}</div></div>`;
@@ -2474,40 +2501,47 @@ function renderRlz(){
     tile("SOLD", usd(all.sold), "what they actually fetched")
   ].join("");
 
-  const span = d.from||d.to
+  const exList=[...ex].sort();
+  const span0 = d.from||d.to
     ? `${d.from?sheetDay(d.from):"the start"} to ${d.to?sheetDay(d.to):"today"}`
     : "every completed auction";
+  const span = span0 + (exList.length?` · without ${exList.join(", ")}`:"");
   $("#rzHead").textContent="SOLD ÷ EV · "+span;
 
-  const table=(el,label,groups,labelCell)=>{
+  const table=(el,label,groups,labelCell,pre)=>{
     const live=groups.filter(g=>g.t.lots);
-    $(el+" thead").innerHTML=`<tr><th>${esc(label)}</th><th>LOTS</th><th>EST VALUE</th><th>SOLD</th><th>DIFFERENCE</th><th>SOLD ÷ EV</th></tr>`;
+    $(el+" thead").innerHTML=`<tr>${pre?"<th></th>":""}<th>${esc(label)}</th><th>LOTS</th><th>EST VALUE</th><th>SOLD</th><th>DIFFERENCE</th><th>SOLD ÷ EV</th></tr>`;
     $(el+" tbody").innerHTML = live.length ? live.map(g=>{
       const diff=g.t.sold-g.t.ev;
-      return `<tr>${labelCell?labelCell(g.k):`<td class="wrap">${esc(g.k)}</td>`}
+      return `<tr${pre&&pre.off(g.k)?' class="rzoff"':""}>${pre?pre.cell(g.k):""}${labelCell?labelCell(g.k):`<td class="wrap">${esc(g.k)}</td>`}
         <td class="num">${fmt(g.t.lots)}</td>
         <td class="num">${usdc(g.t.ev)}</td>
         <td class="num">${usdc(g.t.sold)}</td>
         <td class="num ${diff>=0?"pos":"neg"}">${usdc(diff)}</td>
         <td class="num ${g.t.pct>=100?"pos":"neg"}">${pct2(g.t.pct)}</td></tr>`;
-    }).join("") : `<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Nothing sold in this range.</td></tr>`;
+    }).join("") : `<tr><td colspan="${pre?7:6}" style="padding:20px;text-align:center;color:var(--muted)">Nothing sold in this range.</td></tr>`;
     const T=rlzTotals(live.flatMap(g=>g.rows));
     $(el+" tfoot").innerHTML = live.length
-      ? `<tr><td>ALL</td><td class="num">${fmt(T.lots)}</td><td class="num">${usdc(T.ev)}</td>
+      ? `<tr>${pre?"<td></td>":""}<td>${pre?"INCLUDED":"ALL"}</td><td class="num">${fmt(T.lots)}</td><td class="num">${usdc(T.ev)}</td>
          <td class="num">${usdc(T.sold)}</td>
          <td class="num ${T.sold-T.ev>=0?"pos":"neg"}">${usdc(T.sold-T.ev)}</td>
          <td class="num ${T.pct>=100?"pos":"neg"}">${pct2(T.pct)}</td></tr>` : "";
   };
 
-  /* by grading company */
+  /* by grading company — listing every one in range, switched off or not,
+     because you cannot decide what to exclude without seeing it */
   const byG={};
-  rows.forEach(r=>{
-    const raw=String(r.GRADING_COMPANY||"").toLowerCase();
-    const k=GRADER_LABEL[raw]||(raw?raw.toUpperCase():"(ungraded)");
-    (byG[k]=byG[k]||[]).push(r);
-  });
+  inDate.forEach(r=>{ const k=graderOf(r); (byG[k]=byG[k]||[]).push(r); });
   table("#rzGrader","GRADING COMPANY",
-    Object.keys(byG).sort().map(k=>({k, rows:byG[k], t:rlzTotals(byG[k])})));
+    Object.keys(byG).sort().map(k=>({k, rows:ex.has(k)?[]:byG[k], t:rlzTotals(byG[k])})),
+    null,
+    { off:k=>ex.has(k),
+      cell:k=>`<td class="rzpick"><input type="checkbox" data-g="${esc(k)}" ${ex.has(k)?"":"checked"} title="count this grader in the figures"></td>` });
+  $$("#rzGrader input[data-g]").forEach(cb=>cb.onchange=()=>{
+    const set=rlzExcluded();
+    cb.checked ? set.delete(cb.dataset.g) : set.add(cb.dataset.g);
+    setRlzExcluded(set); renderRlz();
+  });
 
   /* by price range, banded on the estimate */
   table("#rzBand","PRICE RANGE",
