@@ -1850,6 +1850,22 @@ async function pAllRows(){
   return filterRows(book.rows,pScope());
 }
 
+/* Columns asked to be dropped from the completed-auctions export, by name
+   rather than by letter so adding a column later cannot shift the cut onto
+   the wrong one. Most of them are the pieces DESCRIPTION already spells out
+   — player, set, sport, grade, insert, parallel — plus the card attributes
+   and the cost-accounting workings.
+   Only this export: the pipeline's columns are different ones, and the
+   letters these came from were read off the completed sheet. */
+const EXPORT_DROP=["PLAYER_NAME","SET_NAME","SPORT","GRADE","INSERT","PARALLEL_NAME",
+  "PARALLEL_TOTAL","TOTAL_BIDS","MARGIN","COST_KIND","COST_ROW_COUNT","TEAM","YEAR",
+  "CARD_NUMBER","PARALLEL_NUMBER","SLAB_TYPE","RARITY","LANGUAGE","EDITION",
+  "IS_ROOKIE","IS_RELIC","IS_FULL_ART","PREMIER_BLOCK","AUCTION_STATUS",
+  /* workings, not data: the estimate the sheet replaced. json_to_sheet adds
+     any key it finds on a row, so a lot whose estimate came from the sheet
+     would otherwise put a column on the end that the first row never had. */
+  "EV_WAS"];
+
 /* One line that names the card, in the order asked for: set, insert,
    parallel, player, then who graded it and what they gave it. Blanks are
    skipped rather than leaving double spaces, and the pipeline's INSERT_NAME
@@ -1877,9 +1893,14 @@ async function exportXlsx(){
     endLoad(job);
     if(!rows.length){ $("#msg").innerHTML='<div class="err">Nothing to export with these filters.</div>'; return; }
 
+    /* dropped here rather than only from the header list: json_to_sheet
+       appends any key it finds on the row that the header does not mention,
+       so filtering the header alone left every dropped column on the end */
+    const drop = onPipe ? [] : EXPORT_DROP;
     const typed = rows.map(r=>{
       const o={};
       Object.keys(r).forEach(k=>{
+        if(drop.includes(k) || k.charAt(0)==="_") return;
         let v=r[k];
         if(v!==null&&v!==undefined&&v!==""&&DATE_FIELDS.includes(k)){
           const t=Date.parse(v); if(!isNaN(t)) v=new Date(t);
