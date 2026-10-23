@@ -1435,6 +1435,10 @@ function newestSale(rows){
 /* the boxes, the chip and the button state all say the same thing */
 function syncDRange(){
   const d=dRange(), f=$("#fFrom"), t=$("#fTo"), wrap=$(".drange"), x=$("#fDclear");
+  /* the SOLD ÷ EV tab's boxes are the same range, so they show it too */
+  [["#rzFrom",d.from],["#rzTo",d.to]].forEach(([id,v])=>{
+    const el=$(id); if(el && document.activeElement!==el) el.value=v||"";
+  });
   if(!f) return;
   if(document.activeElement!==f) f.value=d.from||"";
   if(document.activeElement!==t) t.value=d.to||"";
@@ -2550,8 +2554,11 @@ $("#secBack").onclick=()=>{ SEC.into=null; renderSectionList(); };
 
    Any date range, not the sheet's fixed 9/1–10/20. The grading companies
    are labelled the way the sheet labels them. */
-const RLZ={from:"", to:"", rows:null};
-const RLZ_KEY="auctiondash.rlz";
+/* The date range is the COMPLETED AUCTIONS one, not a second range of this
+   tab's own. There used to be two, which meant setting a range here moved
+   these figures while the table, the breakdown and the export carried on
+   showing everything — the same words on screen meaning two different
+   things. Both sets of boxes now read and write the one range. */
 const graderOf=r=>String(r.GRADING_COMPANY||"")||"(ungraded)";
 /* graders switched off on this tab; every figure here is computed without
    them, which is the point — the overall percentage is what moves. */
@@ -2589,16 +2596,6 @@ const RLZ_BANDS=[
   {k:"$500+",       lo:500, hi:Infinity}
 ];
 
-function rlzRange(){
-  try{ return JSON.parse(localStorage.getItem(RLZ_KEY))||{}; }catch(_){ return {}; }
-}
-function setRlzRange(from,to){
-  try{
-    if(from||to) localStorage.setItem(RLZ_KEY,JSON.stringify({from:from||"",to:to||""}));
-    else localStorage.removeItem(RLZ_KEY);
-  }catch(_){}
-}
-
 async function loadRlz(){
   const job=startLoad("lots:book","Reading the whole book");
   try{ await ensureBook(); endLoad(job); }
@@ -2620,7 +2617,7 @@ function rlzTotals(rows){
 }
 
 function renderRlz(){
-  const d=rlzRange();
+  const d=dRange();
   const f=$("#rzFrom"), t=$("#rzTo");
   if(f && document.activeElement!==f) f.value=d.from||"";
   if(t && document.activeElement!==t) t.value=d.to||"";
@@ -2725,11 +2722,19 @@ function renderRlz(){
 /* 10/20/26 from a plain date string, without Date.parse treating it as UTC */
 const sheetDay=v=>{ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v||""); return m?`${+m[2]}/${+m[3]}/${m[1].slice(2)}`:v; };
 
+/* changing it here changes it everywhere, so the table and the export
+   follow — load() re-cuts the book, renderRlz redraws these figures */
+function rlzSetRange(from,to){
+  setDRange(from,to);
+  S.page=1;
+  load();
+  renderRlz();
+}
 ["#rzFrom","#rzTo"].forEach(id=>{
   const el=$(id); if(!el) return;
-  el.onchange=()=>{ setRlzRange($("#rzFrom").value,$("#rzTo").value); renderRlz(); };
+  el.onchange=()=>rlzSetRange($("#rzFrom").value,$("#rzTo").value);
 });
-$("#rzClear")&&($("#rzClear").onclick=()=>{ setRlzRange("",""); renderRlz(); });
+$("#rzClear")&&($("#rzClear").onclick=()=>rlzSetRange("",""));
 
 $("#lotCols").onclick=(e)=>{
   e.stopPropagation();
