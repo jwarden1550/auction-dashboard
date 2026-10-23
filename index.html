@@ -1850,6 +1850,19 @@ async function pAllRows(){
   return filterRows(book.rows,pScope());
 }
 
+/* One line that names the card, in the order asked for: set, insert,
+   parallel, player, then who graded it and what they gave it. Blanks are
+   skipped rather than leaving double spaces, and the pipeline's INSERT_NAME
+   is the same field as the completed book's INSERT. */
+function cardDescription(r){
+  const grade=r.GRADE===null||r.GRADE===undefined||r.GRADE===""?"":String(r.GRADE);
+  return [r.SET_NAME, r.INSERT!==undefined?r.INSERT:r.INSERT_NAME, r.PARALLEL_NAME,
+          r.PLAYER_NAME, r.GRADING_COMPANY, grade]
+    .map(v=>String(v==null?"":v).trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
 /* Export the tab you are looking at, as .xlsx.
    CSV handed Google Sheets plain text and let it guess — which turned the
    7-digit card numbers and the ISO timestamps into whatever it felt like.
@@ -1873,12 +1886,19 @@ async function exportXlsx(){
         }
         o[k]=v;
       });
+      o.DESCRIPTION=cardDescription(r);
       return o;
     });
 
+    /* DESCRIPTION is asked for in column D, so the order is set explicitly
+       rather than left to whatever order the keys arrived in. Everything
+       else keeps the order it had, with the new column slotted in fourth. */
+    const keys=Object.keys(typed[0]).filter(k=>k!=="DESCRIPTION");
+    const header=keys.slice(0,3).concat("DESCRIPTION", keys.slice(3));
+
     const sheetName = onPipe ? ((P.cat==="card"?"Cards ":"Watches ")+(P.view==="active"?"in auction":"waiting")) : "Completed auctions";
-    const ws = XLSX.utils.json_to_sheet(typed);
-    ws["!cols"] = Object.keys(typed[0]).map(k=>({wch:Math.min(38,Math.max(10,k.length+2))}));
+    const ws = XLSX.utils.json_to_sheet(typed,{header});
+    ws["!cols"] = header.map(k=>({wch:k==="DESCRIPTION"?64:Math.min(38,Math.max(10,k.length+2))}));
     ws["!autofilter"] = {ref: ws["!ref"]};
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
