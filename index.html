@@ -2443,7 +2443,11 @@ async function loadSections(){
     const blank=k=>({k,live:0,wait:0,lots:0,items:0,cost:0,ev:0,bid:0,bids:0});
     (cat&&cat.rows||[]).forEach(r=>{
       const k=String(r.COLLECTION||"").trim(); if(!k) return;
-      (by[k]||(by[k]=blank(k))).items=numv(r.ITEMS);
+      /* A section holding nothing at all is a name and no more -- VIP sits
+         empty, and the public showroom does not print it either. One that
+         holds stock shows up here even when none of it is live or queued. */
+      const n=numv(r.ITEMS); if(!n) return;
+      (by[k]||(by[k]=blank(k))).items=n;
     });
     const take=(book,live)=>book.rows.forEach(r=>{
       const k=String(r.COLLECTION||"(uncollected)");
