@@ -420,6 +420,34 @@ WHERE NOT COALESCE(i._SNOWFLAKE_DELETED, FALSE)
 ORDER BY wc.ESTIMATED_VALUE_CENTS DESC NULLS LAST, i.ID`
 };
 
+/* Every section the account owns, listed whether or not anything is in it.
+   The other views build their section list out of the lots they return, so a
+   section nobody has listed into yet is invisible there -- a newly created
+   one shows up only once it holds a lot. This is the catalog, so the
+   dashboard can show it at zero from the day it is made.
+
+   ITEMS counts everything filed in the section, not just what is live or
+   queued, so a section holding stock in neither pipeline view still reads
+   as non-empty. It is the figure the public showroom prints under the
+   section name. */
+SQL.sections = `
+SELECT
+    col.ID                                            AS COLLECTION_ID,
+    col.NAME                                          AS "COLLECTION",
+    col.IS_SHOEBOX,
+    COUNT(i.ID)                                       AS ITEMS
+FROM APP_PROD.PUBLIC.COLLECTIONS col
+JOIN APP_PROD.PUBLIC.USERS u
+  ON u.ID = col.USER_ID
+ AND NOT COALESCE(u._SNOWFLAKE_DELETED, FALSE)
+LEFT JOIN APP_PROD.PUBLIC.ITEMS i
+  ON i.COLLECTION_ID = col.ID
+ AND NOT COALESCE(i._SNOWFLAKE_DELETED, FALSE)
+WHERE NOT COALESCE(col._SNOWFLAKE_DELETED, FALSE)
+  AND u.EMAIL = '{{ACCOUNT}}'
+GROUP BY col.ID, col.NAME, col.IS_SHOEBOX
+ORDER BY COUNT(i.ID) DESC, col.ID`;
+
 const BY_CATEGORY = { card: SQL, watch: WATCH_SQL };
 
 const cache = {};
