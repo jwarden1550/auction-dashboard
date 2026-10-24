@@ -539,7 +539,7 @@ tr.rzoff td.rzpick{opacity:1}
 
 
   <div class="card" style="margin-top:14px">
-    <div class="card-h"><span id="pipeHead">LOTS</span>
+    <div class="card-h"><span id="pipeHead">CARDS</span>
       <span class="hbtns">
         <button class="colbtn" id="pipeFilt">FILTER<span class="fcount hidden">0</span></button>
         <button class="colbtn" id="pipeCols">COLUMNS</button>
@@ -1521,13 +1521,13 @@ function renderKpis(b){
   const avgSold=t.sold_count?t.sold/t.sold_count:0;
   const tile=(k,v,s,cls)=>`<div class="kpi ${cls||""}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s||""}</div></div>`;
   $("#kpis").innerHTML=[
-    tile("LOTS",fmt(t.lots),filtered?`of ${fmt(a.lots)} in the book`:"the whole book"),
-    tile("TOTAL COST",usd(t.cost),"what these lots cost"),
+    tile("CARDS",fmt(t.lots),filtered?`of ${fmt(a.lots)} in the book`:"the whole book"),
+    tile("TOTAL COST",usd(t.cost),"what these cards cost"),
     tile("TOTAL SOLD",usd(t.sold),`${fmt(t.sold_count)} sold`),
     tile("PROFIT",usd(t.profit),"sold minus cost of sold",t.profit>=0?"good":"bad"),
     tile("MARGIN",pct(t.margin),"profit ÷ sold",t.margin>=0?"good":"bad"),
     tile("SOLD ÷ EV",pct2(t.sold_to_ev),"sold vs estimated value",t.sold_to_ev>=100?"good":"bad"),
-    tile("AVG SOLD",usd(avgSold),"per lot sold","gold")
+    tile("AVG SOLD",usd(avgSold),"per card sold","gold")
   ].join("");
   $("#mGen").textContent=stamp(b.generated);
   $("#lotHead").textContent=`COMPLETED AUCTIONS · ${fmt(b.matched)}`+(filtered?` of ${fmt(b.total)}`:"");
@@ -1708,7 +1708,7 @@ function renderTable(b){
   }).join("")+"</tr>";
   $("#lotTbl tbody").innerHTML=b.rows.length
     ? b.rows.map(r=>"<tr>"+cols.map(c=>stickify(cell(r,c),c.k===stickKey)).join("")+"</tr>").join("")
-    : `<tr><td colspan="${cols.length}" style="padding:24px;text-align:center;color:var(--muted)">No lots match these filters.</td></tr>`;
+    : `<tr><td colspan="${cols.length}" style="padding:24px;text-align:center;color:var(--muted)">No cards match these filters.</td></tr>`;
   $$("#lotTbl th[data-k]").forEach(th=>th.onclick=()=>{
     const k=th.dataset.k;
     if(S.sort===k) S.dir=S.dir==="asc"?"desc":"asc"; else { S.sort=k; S.dir="desc"; }
@@ -1784,7 +1784,7 @@ function brkAgg(rows,keyOf){
 }
 
 function brkTable(list,firstHeader,clickable){
-  const head=["","LOTS","SOLD #","COST","SOLD","PROFIT","MARGIN","AVG SOLD","BIDS"];
+  const head=["","CARDS","SOLD #","COST","SOLD","PROFIT","MARGIN","AVG SOLD","BIDS"];
   $("#brkTbl thead").innerHTML="<tr>"+head.map((h,i)=>
     `<th${i?' style="text-align:right"':""}>${h||esc(firstHeader)}</th>`).join("")+"</tr>";
   $("#brkTbl tbody").innerHTML=list.map(o=>`<tr${clickable?` data-k="${esc(o.k)}" style="cursor:pointer"`:""}>
@@ -1825,21 +1825,21 @@ async function renderBreak(){
       $("#brkCrumb").classList.add("hidden");
       const list=brkAgg(rows,keyOf).sort((a,b)=>b.sold-a.sold);
       brkTable(list,label,true);
-      $("#brkNote").textContent=`${fmt(rows.length)} lots grouped into ${fmt(list.length)} ${label.toLowerCase()} values. Click a row to break it down by estimated value. Filters from the COMPLETED AUCTIONS tab apply.`;
+      $("#brkNote").textContent=`${fmt(rows.length)} cards grouped into ${fmt(list.length)} ${label.toLowerCase()} values. Click a row to break it down by estimated value. Filters from the COMPLETED AUCTIONS tab apply.`;
       return;
     }
 
     /* drilled in: the same totals, bucketed by estimated value */
     const subset=rows.filter(r=>keyOf(r)===BRK.value);
     $("#brkCrumb").classList.remove("hidden");
-    $("#brkCrumbTitle").innerHTML=`${esc(BRK.value)} <span class="q">${label} &middot; ${fmt(subset.length)} LOTS</span>`;
+    $("#brkCrumbTitle").innerHTML=`${esc(BRK.value)} <span class="q">${label} &middot; ${fmt(subset.length)} CARDS</span>`;
     const byBand=brkAgg(subset,r=>bandOf(r.ESTIMATED_VALUE));
     const order=EV_BANDS.map(b=>b.k).concat("(no est value)");
     const list=order.map(k=>byBand.find(o=>o.k===k)
       ||{k,lots:0,cost:0,sold:0,soldCount:0,costOfSold:0,bids:0,profit:0,margin:null,avg:0})
       .filter(o=>o.lots>0||o.k!=="(no est value)");
     brkTable(list,"EST VALUE",false);
-    $("#brkNote").textContent=`${fmt(subset.length)} ${BRK.value} lots by estimated value. Bands are the card's estimated value, not what it sold for.`;
+    $("#brkNote").textContent=`${fmt(subset.length)} ${BRK.value} cards by estimated value. Bands are the card's estimated value, not what it sold for.`;
   }catch(e){
     endLoad(job,false);
     $("#msg").innerHTML='<div class="err">Could not build the breakdown &mdash; '+esc(e.message)+'</div>';
@@ -1858,7 +1858,7 @@ async function pAllRows(){
    The same four cuts the tab shows — grading company, price range, category,
    sport — so the file opens on the answer with the lots sitting behind it.
 
-   It describes the rows in the Lots sheet and nothing else. Filter or
+   It describes the rows in the Cards sheet and nothing else. Filter or
    date-range the COMPLETED AUCTIONS tab and both sheets move together,
    which is the only way a summary and its detail can be trusted to agree.
 
@@ -1881,7 +1881,7 @@ function rlzSections(rows){
 
 function rlzSummarySheet(rows, basis){
   const all=rlzTotals(rows);
-  const HEAD=["","LOTS","EST VALUE","SOLD","DIFFERENCE","SOLD ÷ EV"];
+  const HEAD=["","CARDS","EST VALUE","SOLD","DIFFERENCE","SOLD ÷ EV"];
   const aoa=[], numbered=[];
   const put=r=>{ aoa.push(r||[]); return aoa.length-1; };
   /* numbers as numbers with a format, never "$1,234" or "74.2%" as text —
@@ -1892,13 +1892,13 @@ function rlzSummarySheet(rows, basis){
   };
 
   put(["ARENA CLUB — COMPLETED AUCTIONS"]);
-  put(["SOLD ÷ EV — what these lots fetched against what they were estimated at"]);
+  put(["SOLD ÷ EV — what these cards fetched against what they were estimated at"]);
   put([basis]);
   put([`Exported ${new Date().toLocaleString("en-US")}`]);
   put();
   put(["A ratio of sums, not an average of ratios: every dollar of estimate counts the same,"]);
   put(["so one $7,000 card moves a figure more than one $10 card does."]);
-  if(all.noEv) put([`${fmt(all.noEv)} lots carry no estimate and are left out of every figure below.`]);
+  if(all.noEv) put([`${fmt(all.noEv)} cards carry no estimate and are left out of every figure below.`]);
   put();
 
   put(["OVERALL"]);
@@ -2003,7 +2003,7 @@ async function exportXlsx(){
     const after=moved.filter(k=>k==="DESCRIPTION"||k in typed[0]);
     const header=keys.slice(0,3).concat(after, keys.slice(3));
 
-    const sheetName = onPipe ? ((P.cat==="card"?"Cards ":"Watches ")+(P.view==="active"?"in auction":"waiting")) : "Lots";
+    const sheetName = onPipe ? ((P.cat==="card"?"Cards ":"Watches ")+(P.view==="active"?"in auction":"waiting")) : "Cards";
     const ws = XLSX.utils.json_to_sheet(typed,{header});
     ws["!cols"] = header.map(k=>({wch:k==="DESCRIPTION"?64:Math.min(38,Math.max(10,k.length+2))}));
     ws["!autofilter"] = {ref: ws["!ref"]};
@@ -2012,7 +2012,7 @@ async function exportXlsx(){
     if(!onPipe){
       const d=dRange();
       const basis=[
-        `${fmt(rows.length)} completed lots`,
+        `${fmt(rows.length)} completed cards`,
         d.from||d.to ? `sold ${d.from?sheetDay(d.from):"from the start"} to ${d.to?sheetDay(d.to):"today"}` : "every completed auction",
         countRules(rulesFor("lots")) ? "with the COMPLETED AUCTIONS filter applied" : "no filter applied"
       ].join(" · ");
@@ -2294,29 +2294,35 @@ async function pCounts(){
   }
 }
 
+/* CARDS, WATCHES and PREMIER share this panel, so the noun follows the pill
+   rather than calling a watch a card. Premier mixes the two, so it stays generic. */
+const pNoun=one=> P.cat==="card"  ? (one?"card":"cards")
+               : P.cat==="watch" ? (one?"watch":"watches")
+               :                   (one?"lot":"lots");
+
 function pKpis(b){
   const t=b.totals||{}, filtered=(b.matched||0)!==(b.total||0);
   const tile=(k,v,s,cls)=>`<div class="kpi ${cls||""}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s||""}</div></div>`;
   const out=[];
   if(P.view==="active"){
-    out.push(tile("IN AUCTION",fmt(t.count),filtered?`of ${fmt(b.total)} live`:"lots accepting bids"));
+    out.push(tile("IN AUCTION",fmt(t.count),filtered?`of ${fmt(b.total)} live`:`${pNoun()} accepting bids`));
     out.push(tile("CLOSING < 24H",fmt(t.closing_24h),"finish today or tomorrow",t.closing_24h?"bad":""));
     out.push(tile("CURRENT BIDS",usd(t.current_bid),`${fmt(t.bids)} bids placed`,"good"));
     out.push(tile("NO BIDS YET",fmt(t.no_bids),"still at opening price",t.no_bids?"gold":""));
-    out.push(tile("PURCHASE COST",usd(t.cost),"what these lots cost"));
-    out.push(tile("P/L @ BID",usd(t.pl_at_bid),"if every lot closed now",t.pl_at_bid>=0?"good":"bad"));
+    out.push(tile("PURCHASE COST",usd(t.cost),`what these ${pNoun()} cost`));
+    out.push(tile("P/L @ BID",usd(t.pl_at_bid),`if every ${pNoun(1)} closed now`,t.pl_at_bid>=0?"good":"bad"));
     out.push(tile("MARGIN @ BID",pct(t.margin_at_bid),"bids minus cost ÷ bids",t.margin_at_bid>=0?"good":"bad"));
     out.push(tile("EST VALUE",usd(t.est_value),"book value on the block"));
   }else{
     out.push(tile("WAITING",fmt(t.count),filtered?`of ${fmt(b.total)} queued`:"in marketplace, not listed"));
     out.push(tile("EST VALUE",usd(t.est_value),"book value waiting","gold"));
-    out.push(tile("PURCHASE COST",usd(t.cost),"what these lots cost"));
+    out.push(tile("PURCHASE COST",usd(t.cost),`what these ${pNoun()} cost`));
     out.push(tile("MARGIN @ EV",pct(t.margin_at_ev),"if each sold at estimate",t.margin_at_ev>=0?"good":"bad"));
     out.push(tile("RELISTS",fmt(t.relists),"ran before, back in queue"));
   }
   $("#pipeKpis").innerHTML=out.join("");
   const what=P.cat==="premier"?(P.view==="active"?"PREMIER, LIVE":"PREMIER, WAITING")
-                              :(P.view==="active"?"LIVE LOTS":"WAITING");
+                              :(P.view==="active"?"LIVE "+pNoun().toUpperCase():"WAITING");
   $("#pipeHead")&&($("#pipeHead").textContent=what+" · "+fmt(b.matched)+(filtered?` of ${fmt(b.total)}`:""));
   $("#mGen").textContent=stamp(b.generated);
 }
@@ -2641,7 +2647,7 @@ function renderRlz(){
   const tile=(k,v,sub,cls)=>`<div class="kpi ${cls||""}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub||""}</div></div>`;
   $("#rzKpis").innerHTML=[
     tile("SOLD ÷ EV", all.pct===null?"—":pct2(all.pct), "the whole range", all.pct>=100?"good":"bad"),
-    tile("LOTS", fmt(all.lots), all.noEv?`${fmt(all.noEv)} with no estimate, left out`:"all with an estimate"),
+    tile("CARDS", fmt(all.lots), all.noEv?`${fmt(all.noEv)} with no estimate, left out`:"all with an estimate"),
     tile("EST VALUE", usd(all.ev), "what they were estimated at","gold"),
     tile("SOLD", usd(all.sold), "what they actually fetched")
   ].join("");
@@ -2655,7 +2661,7 @@ function renderRlz(){
 
   const table=(el,label,groups,labelCell,pre)=>{
     const live=groups.filter(g=>g.t.lots);
-    $(el+" thead").innerHTML=`<tr>${pre?"<th></th>":""}<th>${esc(label)}</th><th>LOTS</th><th>EST VALUE</th><th>SOLD</th><th>DIFFERENCE</th><th>SOLD ÷ EV</th></tr>`;
+    $(el+" thead").innerHTML=`<tr>${pre?"<th></th>":""}<th>${esc(label)}</th><th>CARDS</th><th>EST VALUE</th><th>SOLD</th><th>DIFFERENCE</th><th>SOLD ÷ EV</th></tr>`;
     $(el+" tbody").innerHTML = live.length ? live.map(g=>{
       const diff=g.t.sold-g.t.ev;
       return `<tr${pre&&pre.off(g.k)?' class="rzoff"':""}>${pre?pre.cell(g.k):""}${labelCell?labelCell(g.k):`<td class="wrap">${esc(g.k)}</td>`}
@@ -2714,9 +2720,9 @@ function renderRlz(){
 
   const fixed=rows.filter(r=>r.EV_WAS!==undefined).length;
   $("#rzNote").textContent =
-    (fixed?`${fmt(fixed)} of these lots use the estimate re-done in the auction sheet rather than the warehouse's${EVFIX_AS_OF?", as it stood on "+EVFIX_AS_OF:""} — on COMPLETED AUCTIONS those cells carry a dotted underline, and hovering one shows what the warehouse had. `:"")+
+    (fixed?`${fmt(fixed)} of these cards use the estimate re-done in the auction sheet rather than the warehouse's${EVFIX_AS_OF?", as it stood on "+EVFIX_AS_OF:""} — on COMPLETED AUCTIONS those cells carry a dotted underline, and hovering one shows what the warehouse had. `:"")+
     "Sold ÷ EV is the money, not the lots: every dollar of estimate counts the same, so one $7,000 card moves the figure more than one $10 card. "+
-    (all.noEv ? `${fmt(all.noEv)} lots in this range carry no estimate and are left out of every figure above.` : "");
+    (all.noEv ? `${fmt(all.noEv)} cards in this range carry no estimate and are left out of every figure above.` : "");
 }
 
 /* 10/20/26 from a plain date string, without Date.parse treating it as UTC */
