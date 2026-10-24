@@ -2412,6 +2412,7 @@ const SECCOLS=[
   {k:"live",  t:"IN AUCTION",    num:true},
   {k:"wait",  t:"WAITING",       num:true},
   {k:"lots",  t:"LOTS",          num:true},
+  {k:"items", t:"IN SECTION",    num:true},
   {k:"cost",  t:"PURCHASE COST", num:true, usd:true},
   {k:"ev",    t:"EST VALUE",     num:true, usd:true},
   {k:"bid",   t:"CURRENT BIDS",  num:true, usd:true},
@@ -2433,10 +2434,20 @@ async function loadSections(){
       pBook("card","active"), pBook("card","waiting"),
       pBook("watch","active"), pBook("watch","waiting")
     ]);
+    /* The four views only know the sections their own lots are filed in, so a
+       section nobody has listed into yet would not appear at all. The catalog
+       lists every one the account owns; if it cannot be read the table still
+       builds, just without the empty ones. */
+    const cat=await fetch(PAPI+"?view=sections&limit=4000").then(readJson).catch(()=>null);
     const by={};
+    const blank=k=>({k,live:0,wait:0,lots:0,items:0,cost:0,ev:0,bid:0,bids:0});
+    (cat&&cat.rows||[]).forEach(r=>{
+      const k=String(r.COLLECTION||"").trim(); if(!k) return;
+      (by[k]||(by[k]=blank(k))).items=numv(r.ITEMS);
+    });
     const take=(book,live)=>book.rows.forEach(r=>{
       const k=String(r.COLLECTION||"(uncollected)");
-      const o=by[k]||(by[k]={k,live:0,wait:0,lots:0,cost:0,ev:0,bid:0,bids:0});
+      const o=by[k]||(by[k]=blank(k));
       o[live?"live":"wait"]++; o.lots++;
       o.cost+=numv(r.PURCHASE_COST); o.ev+=numv(r.ESTIMATED_VALUE);
       if(live){ o.bid+=numv(r.CURRENT_BID); o.bids+=numv(r.TOTAL_BIDS); }
@@ -2467,7 +2478,7 @@ function renderSectionList(){
 
   const tile=(k,v,sub,cls)=>`<div class="kpi ${cls||""}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub||""}</div></div>`;
   $("#secKpis").innerHTML=[
-    tile("SECTIONS",fmt(rows.length),"holding at least one lot"),
+    tile("SECTIONS",fmt(rows.length),`${fmt(rows.filter(r=>!r.lots).length)} with nothing in auction or waiting`),
     tile("LOTS",fmt(T.lots),`${fmt(T.live)} in auction, ${fmt(T.wait)} waiting`),
     tile("PURCHASE COST",usd(T.cost),"what they all cost"),
     tile("EST VALUE",usd(T.ev),"book value across them","gold"),
