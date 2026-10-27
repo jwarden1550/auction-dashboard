@@ -448,6 +448,32 @@ WHERE NOT COALESCE(col._SNOWFLAKE_DELETED, FALSE)
 GROUP BY col.ID, col.NAME, col.IS_SHOEBOX
 ORDER BY COUNT(i.ID) DESC, col.ID`;
 
+/* TEMPORARY -- an audit of everything the account owns, by status and
+   category, so the views above can be checked for what they leave out.
+   Remove once read. */
+SQL.audit = `
+SELECT 'auction' AS KIND,
+       a.STATUS AS BUCKET,
+       a.ITEM_CATEGORY AS CATEGORY,
+       COUNT(*) AS N,
+       MIN(CONVERT_TIMEZONE('America/Los_Angeles', a.END_AT))::date AS FIRST_END,
+       MAX(CONVERT_TIMEZONE('America/Los_Angeles', a.END_AT))::date AS LAST_END
+  FROM APP_PROD.PUBLIC.AUCTION a
+  JOIN APP_PROD.PUBLIC.USERS u
+    ON u.ID = a.USER_ID AND NOT COALESCE(u._SNOWFLAKE_DELETED, FALSE)
+ WHERE NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
+   AND u.EMAIL = '{{ACCOUNT}}'
+ GROUP BY 1,2,3
+UNION ALL
+SELECT 'item', i.STATUS, i.CATEGORY, COUNT(*), NULL::date, NULL::date
+  FROM APP_PROD.PUBLIC.ITEMS i
+  JOIN APP_PROD.PUBLIC.USERS u
+    ON u.ID = i.USER_ID AND NOT COALESCE(u._SNOWFLAKE_DELETED, FALSE)
+ WHERE NOT COALESCE(i._SNOWFLAKE_DELETED, FALSE)
+   AND u.EMAIL = '{{ACCOUNT}}'
+ GROUP BY 1,2,3
+ ORDER BY 1,2,3`;
+
 const BY_CATEGORY = { card: SQL, watch: WATCH_SQL };
 
 const cache = {};
