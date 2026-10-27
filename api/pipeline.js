@@ -50,6 +50,19 @@
  *     which is cards-only by construction.
  *   - an item leaves 'in_marketplace' when its auction goes active, so the two
  *     views cannot double-count (measured: 0 overlap)
+ *   - auction.STATUS, audited 2026-10-27 over all 14,630 the account has
+ *     ever run: completed 13,249 (card 13,221 + watch 28), expired_payment
+ *     858, active 355, reserve_not_met 141, cancelled 28. COMPLETED
+ *     AUCTIONS reads 'completed' and the pipeline reads 'active', so 1,027
+ *     ended auctions are out of scope by construction. Deliberate:
+ *       expired_payment carries $28.1M of bids against $130k of estimate --
+ *         $32,784 a card on cards estimated at $151. Bids that never paid,
+ *         which is what the status means. Counting them would wreck every
+ *         figure on the dashboard.
+ *       reserve_not_met (141, 82 with bids, $123k of estimate) genuinely
+ *         ended unsold -- the one omission worth revisiting if sell-through
+ *         is ever wanted.
+ *       cancelled (28) never took a bid.
  */
 
 const HOST = (process.env.METABASE_HOST || '').replace(/\/$/, '');
@@ -447,27 +460,6 @@ WHERE NOT COALESCE(col._SNOWFLAKE_DELETED, FALSE)
   AND u.EMAIL = '{{ACCOUNT}}'
 GROUP BY col.ID, col.NAME, col.IS_SHOEBOX
 ORDER BY COUNT(i.ID) DESC, col.ID`;
-
-/* TEMPORARY -- an audit of everything the account owns, by status and
-   category, so the views above can be checked for what they leave out.
-   Remove once read. */
-SQL.audit = `
-SELECT a.STATUS AS BUCKET,
-       a.ITEM_CATEGORY AS CATEGORY,
-       COUNT(*) AS N,
-       ROUND(SUM(a.CURRENT_BID_VALUE_CENTS)/100.0, 2) AS BID_TOTAL,
-       ROUND(SUM(c.ESTIMATED_VALUE_CENTS)/100.0, 2) AS EV_TOTAL,
-       SUM(IFF(a.TOTAL_BIDS > 0, 1, 0)) AS WITH_BIDS,
-       MAX(CONVERT_TIMEZONE('America/Los_Angeles', a.END_AT))::date AS LAST_END
-  FROM APP_PROD.PUBLIC.AUCTION a
-  JOIN APP_PROD.PUBLIC.USERS u
-    ON u.ID = a.USER_ID AND NOT COALESCE(u._SNOWFLAKE_DELETED, FALSE)
-  LEFT JOIN APP_PROD.ADMIN.CARDS c
-    ON c.ID = a.ITEM_ID AND NOT COALESCE(c._SNOWFLAKE_DELETED, FALSE)
- WHERE NOT COALESCE(a._SNOWFLAKE_DELETED, FALSE)
-   AND u.EMAIL = '{{ACCOUNT}}'
- GROUP BY 1,2
- ORDER BY 1,2`;
 
 const BY_CATEGORY = { card: SQL, watch: WATCH_SQL };
 
