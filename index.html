@@ -2604,7 +2604,9 @@ $("#secBack").onclick=()=>{ SEC.into=null; renderSectionList(); };
 
    /marketplace?tab=premier_auctions lists every seller's premier lots.
    Everything here is this account's alone, like every other tab. */
-const PM={into:null, sort:"last", dir:"desc"};
+/* lsort/ldir order the cards inside a block. They open on the biggest miss:
+   the card that fell furthest short of its estimate, in dollars, on top. */
+const PM={into:null, sort:"last", dir:"desc", lsort:"_DIFF", ldir:"asc"};
 const pmBlock=r=>String(r.PREMIER_BLOCK||"standard");
 const isPremier=r=>pmBlock(r)!=="standard";
 
@@ -2773,6 +2775,7 @@ const PMLOT=[
   {k:"PURCHASE_COST",t:"COST",kind:"usd"},
   {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
   {k:"_GOT",t:"SOLD / BID",kind:"usd"},
+  {k:"_DIFF",t:"VS EV",kind:"signed"},
   {k:"_RATIO",t:"SOLD ÷ EV",kind:"ratio"},
   {k:"TOTAL_BIDS",t:"BIDS",kind:"int"},
   {k:"_WHEN",t:"CLOSED",kind:"date"}
@@ -2784,19 +2787,26 @@ function renderPremLots(){
     if(pmBlock(r)!==want) return;
     const got=numv(r.SOLD_PRICE), ev=numv(r.ESTIMATED_VALUE);
     rows.push(Object.assign({},r,{_WHAT:"closed",_GOT:got,_WHEN:r.SOLD_AT,
-      _RATIO: ev? (got/ev)*100 : null}));
+      _DIFF: ev? got-ev : null, _RATIO: ev? (got/ev)*100 : null}));
   });
   const lb=P.books["card:active"];
   ((lb&&lb.rows)||[]).forEach(r=>{
     if(pmBlock(r)!==want) return;
     const got=numv(r.CURRENT_BID), ev=numv(r.ESTIMATED_VALUE);
     rows.push(Object.assign({},r,{_WHAT:"live",_GOT:got,_WHEN:r.END_AT,
-      _RATIO: ev? (got/ev)*100 : null}));
+      _DIFF: ev? got-ev : null, _RATIO: ev? (got/ev)*100 : null}));
   });
-  /* live first -- those are the ones still worth watching */
+  /* live first -- those are the ones still worth watching -- then the chosen
+     column within each group. A card with nothing in that column (no
+     estimate, so no miss to measure) sinks to the bottom either way. */
+  const numeric=k=>!["PLAYER_NAME","SET_NAME","SPORT","CERT_NUMBER","_WHEN","_WHAT"].includes(k);
   rows.sort((a,b)=>{
     if((a._WHAT==="live")!==(b._WHAT==="live")) return a._WHAT==="live"?-1:1;
-    return numv(b._GOT)-numv(a._GOT);
+    const k=PM.lsort, d=PM.ldir==="asc"?1:-1;
+    const x=a[k], y=b[k];
+    const ex=x===null||x===undefined||x==="", ey=y===null||y===undefined||y==="";
+    if(ex||ey) return ex===ey?0:ex?1:-1;
+    return (numeric(k) ? numv(x)-numv(y) : String(x).localeCompare(String(y)))*d;
   });
 
   $("#pmCrumb").classList.remove("hidden");
@@ -2804,7 +2814,11 @@ function renderPremLots(){
   $("#pmHead").textContent="CARDS IN BLOCK · "+fmt(rows.length);
   $("#pmKpis").innerHTML="";
   $("#pmVsCard").classList.add("hidden");
-  $("#pmTbl thead").innerHTML="<tr>"+PMLOT.map(c=>`<th>${esc(c.t)}</th>`).join("")+"</tr>";
+  $("#pmTbl thead").innerHTML="<tr>"+PMLOT.map(c=>{
+    if(c.nosort) return `<th>${esc(c.t)}</th>`;
+    const on=PM.lsort===c.k;
+    return `<th data-lk="${c.k}" style="cursor:pointer">${esc(c.t)}${on?`<span class="ar">${PM.ldir==="asc"?"▲":"▼"}</span>`:""}</th>`;
+  }).join("")+"</tr>";
   $("#pmTbl tbody").innerHTML=rows.length
     ? rows.map(r=>"<tr>"+PMLOT.map(c=>
         c.kind==="state"
@@ -2812,7 +2826,13 @@ function renderPremLots(){
           : cell(r,c)).join("")+"</tr>").join("")
     : `<tr><td colspan="${PMLOT.length}" style="padding:24px;text-align:center;color:var(--muted)">Nothing in this block.</td></tr>`;
   $("#pmTbl tfoot").innerHTML="";
-  $("#pmNote").textContent="SOLD / BID is the sale price once a card has closed, and the current bid while it is still live — so on a live card SOLD ÷ EV is only where the bidding has reached, and climbs until it closes.";
+  $$("#pmTbl th[data-lk]").forEach(th=>th.onclick=()=>{
+    const k=th.dataset.lk;
+    if(PM.lsort===k) PM.ldir=PM.ldir==="asc"?"desc":"asc";
+    else { PM.lsort=k; PM.ldir=numeric(k)&&k!=="_DIFF"?"desc":"asc"; }
+    renderPremLots();
+  });
+  $("#pmNote").textContent="Opens on the biggest miss: VS EV is what a card fetched minus its estimate, the furthest short on top. Click any heading to sort by it instead. SOLD / BID is the sale price once a card has closed, and the current bid while it is still live — so on a live card SOLD ÷ EV is only where the bidding has reached, and climbs until it closes.";
 }
 $("#pmBack").onclick=()=>{ PM.into=null; $("#pmVsCard").classList.remove("hidden"); renderPremBlocks(); };
 
