@@ -484,6 +484,7 @@ tr.rzoff td.rzpick{opacity:1}
     <button class="tab" data-page="secs">SECTIONS <span class="count" id="secsTabCount"></span></button>
     <button class="tab" data-page="break">BREAKDOWN</button>
     <button class="tab" data-page="rlz">SOLD ÷ EV</button>
+    <button class="tab" data-page="prem">PREMIER <span class="count" id="premTabCount"></span></button>
   </div>
   <div class="tabtools">
     <span class="pulled" id="mGen" title="These views are cached briefly, so this is when the data itself was read"></span>
@@ -641,6 +642,30 @@ tr.rzoff td.rzpick{opacity:1}
     </div>
   </div>
   <p class="note" id="rzNote"></p>
+</div>
+
+<div id="page-prem" class="hidden">
+  <div class="kpis" id="pmKpis"></div>
+
+  <div class="crumb hidden" id="pmCrumb">
+    <button class="back" id="pmBack" title="Back to all blocks">&#8592;</button>
+    <h2 id="pmCrumbTitle"></h2>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-h"><span id="pmHead">PREMIER BLOCKS</span></div>
+    <div class="card-b" style="padding:0">
+      <div class="tscroll"><table id="pmTbl"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px" id="pmVsCard">
+    <div class="card-h"><span>PREMIER vs STANDARD</span></div>
+    <div class="card-b" style="padding:0">
+      <div class="tscroll"><table id="pmVs"><thead></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+  <p class="note" id="pmNote"></p>
 </div>
 
 <div id="msg"></div>
@@ -1685,6 +1710,13 @@ function cell(row,c){
       const n=((sp-c)/sp)*100;
       return `<td class="num ${n>0?"pos":n<0?"neg":""}">${pct(n)}</td>`;
     }
+    /* A ratio against estimate, not a change: no + sign, and the colour
+       turns on 100% -- a lot fetching 41% of its estimate is not a gain. */
+    case "ratio":{
+      if(v===null||v===undefined||v==="") return `<td class="num">—</td>`;
+      const n=Number(v);
+      return `<td class="num ${n>=100?"pos":"neg"}">${pct2(n)}</td>`;
+    }
     case "pctcell":{
       if(v===null||v===undefined||v==="") return `<td class="num">—</td>`;
       const n=Number(v);
@@ -2563,6 +2595,227 @@ function renderSectionLots(){
 }
 $("#secBack").onclick=()=>{ SEC.into=null; renderSectionList(); };
 
+/* ---------- PREMIER ----------
+   A premier block is a curated sale: a set of lots run together under one
+   name, on their own tab of the public marketplace. auction.PREMIER_BLOCK
+   carries that name, or reads 'standard' for a lot that was never in one, so
+   a block is a group-by on that column -- the completed book for the sales
+   that have closed, the live pipeline for the one on the floor.
+
+   /marketplace?tab=premier_auctions lists every seller's premier lots.
+   Everything here is this account's alone, like every other tab. */
+const PM={into:null, sort:"last", dir:"desc"};
+const pmBlock=r=>String(r.PREMIER_BLOCK||"standard");
+const isPremier=r=>pmBlock(r)!=="standard";
+
+const PMCOLS=[
+  {k:"k",      t:"BLOCK"},
+  {k:"live",   t:"LIVE",      num:true},
+  {k:"lots",   t:"CARDS",     num:true},
+  {k:"cost",   t:"COST",      num:true, usd:true},
+  {k:"ev",     t:"EST VALUE", num:true, usd:true},
+  {k:"sold",   t:"SOLD",      num:true, usd:true},
+  {k:"pct",    t:"SOLD ÷ EV", num:true, pc:true},
+  {k:"margin", t:"MARGIN",    num:true, pc:true, signed:true},
+  {k:"last",   t:"CLOSED",    date:true}
+];
+
+/* One row per block. EST VALUE and SOLD ÷ EV skip the lots carrying no
+   estimate -- the same rule the SOLD ÷ EV tab uses, since dividing by an
+   estimate a lot does not have would quietly inflate the figure. COST, SOLD
+   and MARGIN count every lot, because that money moved either way. The
+   October watches block is the case that shows the difference: ten lots, no
+   estimates between them, so it reads a real SOLD and no ratio at all. */
+function pmRows(){
+  const by={};
+  const blank=k=>({k,lots:0,live:0,bid:0,liveCost:0,cost:0,ev:0,evSold:0,sold:0,noEv:0,bids:0,first:"",last:""});
+  ((S.book&&S.book.rows)||[]).forEach(r=>{
+    if(!isPremier(r)) return;
+    const o=by[r.PREMIER_BLOCK]||(by[r.PREMIER_BLOCK]=blank(r.PREMIER_BLOCK));
+    o.lots++; o.cost+=numv(r.PURCHASE_COST); o.sold+=numv(r.SOLD_PRICE);
+    o.bids+=numv(r.TOTAL_BIDS);
+    const e=numv(r.ESTIMATED_VALUE);
+    if(e){ o.ev+=e; o.evSold+=numv(r.SOLD_PRICE); } else o.noEv++;
+    const d=String(r.SOLD_AT||"").slice(0,10);
+    if(d){ if(!o.first||d<o.first) o.first=d; if(d>o.last) o.last=d; }
+  });
+  const lb=P.books["card:active"];
+  ((lb&&lb.rows)||[]).forEach(r=>{
+    if(!isPremier(r)) return;
+    const o=by[r.PREMIER_BLOCK]||(by[r.PREMIER_BLOCK]=blank(r.PREMIER_BLOCK));
+    /* count and current bid only. A live lot has no sale price yet, so
+       adding its cost here would charge the block for a sale it has not
+       made -- it dragged ALL BLOCKS from -27.6% to -52.6% when it did. */
+    o.live++; o.bid+=numv(r.CURRENT_BID); o.liveCost+=numv(r.PURCHASE_COST);
+  });
+  return Object.values(by).map(o=>Object.assign(o,{
+    pct:    o.ev   ? (o.evSold/o.ev)*100         : null,
+    margin: o.sold ? ((o.sold-o.cost)/o.sold)*100 : null
+  }));
+}
+
+/* the same ratio over everything that was never in a block, so the two sit
+   side by side on one line */
+function pmStandard(){
+  let ev=0, sold=0, lots=0;
+  ((S.book&&S.book.rows)||[]).forEach(r=>{
+    if(isPremier(r)) return;
+    const e=numv(r.ESTIMATED_VALUE); if(!e) return;
+    ev+=e; sold+=numv(r.SOLD_PRICE); lots++;
+  });
+  return {lots, ev, sold, pct: ev? (sold/ev)*100 : null};
+}
+
+async function loadPrem(){
+  const job=startLoad("lots:book","Reading the whole book");
+  try{ await ensureBook(); endLoad(job); }
+  catch(e){ endLoad(job,false); $("#msg").innerHTML='<div class="err">Could not read the book — '+esc(e.message)+'</div>'; return; }
+  /* the block on the floor comes from the pipeline; without it the closed
+     blocks still render, just with no LIVE count */
+  if(PAPI && !P.books["card:active"]){ try{ await pBook("card","active"); }catch(_){} }
+  renderPrem();
+}
+
+const renderPrem=()=>PM.into ? renderPremLots() : renderPremBlocks();
+
+function pmCell(o,c){
+  const v=o[c.k];
+  if(c.k==="k") return `<td class="wrap">${esc(v)}${o.live?' <span class="sec auctions">live</span>':""}</td>`;
+  if(c.date)   return `<td class="num">${v?day(v):"—"}</td>`;
+  if(c.usd)    return `<td class="num"${exactTip(v)}>${v?usdc(v):"—"}</td>`;
+  if(c.pc){
+    if(v===null||v===undefined) return `<td class="num" title="${c.signed?"nothing sold yet, so a margin is undefined":"no estimate on these cards, so a ratio is undefined"}">—</td>`;
+    const good = c.signed ? v>0 : v>=100;
+    /* SOLD is every closed card; the ratio only counts the ones carrying an
+       estimate, so where those differ the cell shows the figures it used */
+    const tip = c.k==="pct"
+      ? ` title="${usdc(o.evSold)} sold against ${usdc(o.ev)} of estimate${o.noEv?`, over ${fmt(o.lots-o.noEv)} of ${fmt(o.lots)} cards — ${fmt(o.noEv)} carry no estimate`:""}"`
+      : "";
+    return `<td class="num ${good?"pos":"neg"}"${tip}>${pct2(v)}</td>`;
+  }
+  if(c.k==="lots" && o.noEv)
+    return `<td class="num" title="${fmt(o.noEv)} of these carry no estimate, so they are left out of EST VALUE and SOLD ÷ EV">${fmt(v)}</td>`;
+  if(c.k==="live" && v && o.liveCost)
+    return `<td class="num" title="${usdc(o.bid)} bid so far against ${usdc(o.liveCost)} of cost">${fmt(v)}</td>`;
+  return `<td class="num">${v?fmt(v):"—"}</td>`;
+}
+
+function renderPremBlocks(){
+  $("#pmCrumb").classList.add("hidden");
+  const rows=pmRows().sort((a,b)=>{
+    const d=PM.dir==="asc"?1:-1;
+    const x=a[PM.sort], y=b[PM.sort];
+    if(x===null||x===undefined) return 1;
+    if(y===null||y===undefined) return -1;
+    return (typeof x==="string" ? String(x).localeCompare(String(y)) : x-y)*d;
+  });
+  const T=rows.reduce((a,o)=>{
+    ["lots","live","cost","ev","evSold","sold","noEv","bids","bid","liveCost"].forEach(k=>a[k]+=o[k]);
+    return a;
+  },{lots:0,live:0,cost:0,ev:0,evSold:0,sold:0,noEv:0,bids:0,bid:0,liveCost:0});
+  T.pct    = T.ev   ? (T.evSold/T.ev)*100          : null;
+  T.margin = T.sold ? ((T.sold-T.cost)/T.sold)*100 : null;
+  T.k="ALL BLOCKS"; T.last="";
+  const std=pmStandard();
+  const gap = (T.pct!==null && std.pct!==null) ? T.pct-std.pct : null;
+
+  const tile=(k,v,sub,cls)=>`<div class="kpi ${cls||""}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub||""}</div></div>`;
+  $("#pmKpis").innerHTML=[
+    tile("SOLD ÷ EV", T.pct===null?"—":pct2(T.pct), "across every closed block", T.pct>=100?"good":"bad"),
+    tile("VS STANDARD", gap===null?"—":(gap>=0?"+":"")+gap.toFixed(1)+" pts",
+         std.pct===null?"":`everything else runs ${pct2(std.pct)}`, gap>=0?"good":"bad"),
+    tile("BLOCKS", fmt(rows.length), `${fmt(T.lots)} cards run through them`),
+    tile("LIVE NOW", fmt(T.live), T.live?`${usd(T.bid)} bid so far`:"nothing on the floor","gold")
+  ].join("");
+
+  $("#pmHead").textContent="PREMIER BLOCKS · "+fmt(rows.length);
+  $("#pmTbl thead").innerHTML="<tr>"+PMCOLS.map(c=>{
+    const on=PM.sort===c.k;
+    return `<th data-k="${c.k}">${esc(c.t)}${on?`<span class="ar">${PM.dir==="asc"?"▲":"▼"}</span>`:""}</th>`;
+  }).join("")+"</tr>";
+  $("#pmTbl tbody").innerHTML = rows.length
+    ? rows.map(o=>`<tr data-b="${esc(o.k)}" style="cursor:pointer">`+PMCOLS.map(c=>pmCell(o,c)).join("")+"</tr>").join("")
+    : `<tr><td colspan="${PMCOLS.length}" style="padding:24px;text-align:center;color:var(--muted)">No premier blocks on this account yet.</td></tr>`;
+  $("#pmTbl tfoot").innerHTML="<tr>"+PMCOLS.map(c=>
+    c.k==="k" ? `<td>ALL BLOCKS</td>` : pmCell(T,c)).join("")+"</tr>";
+
+  $$("#pmTbl th[data-k]").forEach(th=>th.onclick=()=>{
+    const k=th.dataset.k;
+    if(PM.sort===k) PM.dir=PM.dir==="asc"?"desc":"asc"; else { PM.sort=k; PM.dir=k==="k"?"asc":"desc"; }
+    renderPremBlocks();
+  });
+  $$("#pmTbl tbody tr[data-b]").forEach(tr=>tr.onclick=()=>{ PM.into=tr.dataset.b; renderPremLots(); });
+
+  $("#pmVs thead").innerHTML="<tr><th></th><th>CARDS</th><th>EST VALUE</th><th>SOLD</th><th>SOLD ÷ EV</th></tr>";
+  const line=(label,n,ev,sold,pc,cls)=>`<tr><td class="wrap">${esc(label)}</td>`+
+    `<td class="num">${fmt(n)}</td><td class="num">${usdc(ev)}</td><td class="num">${usdc(sold)}</td>`+
+    `<td class="num ${cls}">${pc===null?"—":pct2(pc)}</td></tr>`;
+  $("#pmVs tbody").innerHTML=
+    line("Premier", T.lots-T.noEv, T.ev, T.evSold, T.pct, T.pct>=100?"pos":"neg")+
+    line("Standard", std.lots, std.ev, std.sold, std.pct, std.pct>=100?"pos":"neg");
+
+  const tc=$("#premTabCount"); if(tc) tc.textContent=fmt(rows.length);
+  $("#pmNote").textContent=
+    `Every premier block on the slabpacks@arenaclub.com account. Click one for the cards inside it. `+
+    (T.noEv?`${fmt(T.noEv)} premier cards carry no estimate and are left out of EST VALUE and SOLD ÷ EV, though their cost and sold price still count. `:"")+
+    `The public premier tab lists every seller's lots; these are this account's only.`;
+}
+
+/* the cards inside one block: what closed, and whatever is still live */
+const PMLOT=[
+  {k:"FRONT_SLAB_PICTURE_URL",t:"",kind:"img",nosort:true},
+  {k:"_WHAT",t:"",kind:"state"},
+  {k:"PLAYER_NAME",t:"PLAYER",kind:"wrap"},
+  {k:"SET_NAME",t:"SET",kind:"wrap"},
+  {k:"SPORT",t:"SPORT",kind:"sport"},
+  {k:"GRADE",t:"GRADE"},
+  {k:"CERT_NUMBER",t:"CERT"},
+  {k:"PURCHASE_COST",t:"COST",kind:"usd"},
+  {k:"ESTIMATED_VALUE",t:"EST VALUE",kind:"usd"},
+  {k:"_GOT",t:"SOLD / BID",kind:"usd"},
+  {k:"_RATIO",t:"SOLD ÷ EV",kind:"ratio"},
+  {k:"TOTAL_BIDS",t:"BIDS",kind:"int"},
+  {k:"_WHEN",t:"CLOSED",kind:"date"}
+];
+
+function renderPremLots(){
+  const want=PM.into, rows=[];
+  ((S.book&&S.book.rows)||[]).forEach(r=>{
+    if(pmBlock(r)!==want) return;
+    const got=numv(r.SOLD_PRICE), ev=numv(r.ESTIMATED_VALUE);
+    rows.push(Object.assign({},r,{_WHAT:"closed",_GOT:got,_WHEN:r.SOLD_AT,
+      _RATIO: ev? (got/ev)*100 : null}));
+  });
+  const lb=P.books["card:active"];
+  ((lb&&lb.rows)||[]).forEach(r=>{
+    if(pmBlock(r)!==want) return;
+    const got=numv(r.CURRENT_BID), ev=numv(r.ESTIMATED_VALUE);
+    rows.push(Object.assign({},r,{_WHAT:"live",_GOT:got,_WHEN:r.END_AT,
+      _RATIO: ev? (got/ev)*100 : null}));
+  });
+  /* live first -- those are the ones still worth watching */
+  rows.sort((a,b)=>{
+    if((a._WHAT==="live")!==(b._WHAT==="live")) return a._WHAT==="live"?-1:1;
+    return numv(b._GOT)-numv(a._GOT);
+  });
+
+  $("#pmCrumb").classList.remove("hidden");
+  $("#pmCrumbTitle").innerHTML=`${esc(want)} <span class="q">${fmt(rows.length)} CARDS</span>`;
+  $("#pmHead").textContent="CARDS IN BLOCK · "+fmt(rows.length);
+  $("#pmKpis").innerHTML="";
+  $("#pmVsCard").classList.add("hidden");
+  $("#pmTbl thead").innerHTML="<tr>"+PMLOT.map(c=>`<th>${esc(c.t)}</th>`).join("")+"</tr>";
+  $("#pmTbl tbody").innerHTML=rows.length
+    ? rows.map(r=>"<tr>"+PMLOT.map(c=>
+        c.kind==="state"
+          ? `<td><span class="sec ${r._WHAT==="live"?"auctions":"shoebox"}">${esc(r._WHAT)}</span></td>`
+          : cell(r,c)).join("")+"</tr>").join("")
+    : `<tr><td colspan="${PMLOT.length}" style="padding:24px;text-align:center;color:var(--muted)">Nothing in this block.</td></tr>`;
+  $("#pmTbl tfoot").innerHTML="";
+  $("#pmNote").textContent="SOLD / BID is the sale price once a card has closed, and the current bid while it is still live — so on a live card SOLD ÷ EV is only where the bidding has reached, and climbs until it closes.";
+}
+$("#pmBack").onclick=()=>{ PM.into=null; $("#pmVsCard").classList.remove("hidden"); renderPremBlocks(); };
+
 /* ---------- SOLD ÷ EV ----------
    The sheet's "Total Percentage": what the lots fetched against what they
    were estimated at, as one figure and then cut two ways. Confirmed against
@@ -2926,10 +3179,12 @@ $$(".tab[data-page]").forEach(b=>b.onclick=()=>{
   $("#page-break").classList.toggle("hidden",pg!=="break");
   $("#page-secs").classList.toggle("hidden",pg!=="secs");
   $("#page-rlz").classList.toggle("hidden",pg!=="rlz");
+  $("#page-prem").classList.toggle("hidden",pg!=="prem");
   $("#page-pipe").classList.toggle("hidden",pg!=="pipe");
   if(pg==="break") renderBreak();
   if(pg==="secs") loadSections();
   if(pg==="rlz") loadRlz();
+  if(pg==="prem") loadPrem();
   if(pg==="pipe"){ loadPipe().then(pCounts); }
 });
 
@@ -2961,6 +3216,7 @@ $("#reload").onclick=async()=>{
     if(currentPage==="pipe"){ await loadPipe(); pCounts(); }
     else if(currentPage==="secs"){ await loadSections(); }
     else if(currentPage==="rlz"){ await loadRlz(); }
+    else if(currentPage==="prem"){ await loadPrem(); }
     else { await load(); if(currentPage==="break") renderBreak(); }
   } finally {
     FORCE_FRESH=false; btn.disabled=false; btn.textContent=label;
